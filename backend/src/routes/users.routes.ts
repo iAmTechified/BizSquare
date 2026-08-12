@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { authenticateJWT, AuthRequest } from '../middleware/auth.middleware';
 import { pool } from '../db/pool';
+import { NotificationService } from '../services/notification.service';
 
 const router = Router();
 
@@ -206,6 +207,17 @@ router.put('/pin', authenticateJWT, async (req: AuthRequest, res: Response): Pro
       `UPDATE users SET pin_hash = $1 WHERE id = $2`,
       [newPinHash, userId]
     );
+
+    // Create security notification
+    try {
+      await NotificationService.createNotification({
+        userId,
+        title: 'Security PIN updated',
+        body: 'Your 4-digit security PIN was successfully changed.',
+        type: 'account',
+        actionUrl: '/profile/account',
+      });
+    } catch (_) {}
 
     res.json({
       success: true,

@@ -1,4 +1,5 @@
 import { pool } from '../db/pool';
+import { NotificationService } from './notification.service';
 
 export interface SpotlightRequirement {
   prompt: string;
@@ -285,6 +286,18 @@ export class SpotlightService {
       }
 
       await client.query('COMMIT');
+
+      // Create in-app event notification
+      try {
+        await NotificationService.createNotification({
+          userId,
+          title: 'Spotlight submission received',
+          body: 'Your spotlight post has been submitted and is undergoing verification.',
+          type: 'spotlight',
+          actionUrl: '/spotlight',
+        });
+      } catch (_) {}
+
       return {
         success: true,
         campaignId,

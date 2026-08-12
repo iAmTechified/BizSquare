@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/home_state_provider.dart';
+import '../../core/providers/notifications_state_provider.dart';
 import '../../core/providers/permission_state_provider.dart';
 import 'widgets/home_header.dart';
 import 'widgets/offline_banner.dart';
@@ -50,7 +51,7 @@ class HomeDashboardScreen extends ConsumerWidget {
                   userName: homeState.userName,
                   businessName: homeState.businessName,
                   avatarId: homeState.avatarId,
-                  unreadCount: homeState.unreadNotificationCount,
+                  unreadCount: ref.watch(notificationsStateProvider).unreadCount,
                   isNewUser: homeState.isNewUser,
                 ),
 

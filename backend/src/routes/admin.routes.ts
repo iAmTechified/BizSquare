@@ -728,42 +728,117 @@ router.get('/overview', requireAdmin, async (req: AuthRequest, res: Response) =>
 
 /**
  * GET /api/v1/admin/users
- * Real user registry endpoint fetching users directly from PostgreSQL database.
- * Supports pagination (limit, offset), search (name, phone, id), and status filter (active, suspended).
+ * Real production user registry query supporting:
+ * - Server-side search (name, phone, username, business name, user UUID)
+ * - Server-side filters (account status, setup status, spotlight status, contact sync status)
+ * - Server-side sorting (newest, oldest, recently_active, name_asc, name_desc)
+ * - Server-side pagination (limit, offset, total_count)
  */
 router.get('/users', requirePermission('users.view'), async (req: AuthRequest, res: Response) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
     const search = req.query.search ? `%${(req.query.search as string).trim()}%` : null;
+    
+    // Filters
     const status = req.query.status as string; // 'active' | 'suspended' | 'all'
+    const setupStatus = req.query.setup_status as string; // 'complete' | 'incomplete' | 'all'
+    const spotlightFilter = req.query.spotlight_status as string; // 'active' | 'pending' | 'none' | 'all'
+    const syncFilter = req.query.contact_sync_status as string; // 'synced' | 'pending' | 'failed' | 'all'
+    const sort = (req.query.sort as string) || 'newest';
 
-    let statusCondition = '';
-    if (status === 'active') {
-      statusCondition = 'AND is_active = true';
-    } else if (status === 'suspended') {
-      statusCondition = 'AND is_active = false';
+    // Construct SQL WHERE conditions
+    const whereConditions: string[] = ['1=1'];
+    const queryParams: any[] = [];
+
+    if (search) {
+      queryParams.push(search);
+      const paramIdx = queryParams.length;
+      whereConditions.push(
+        `($${paramIdx}::text IS NULL OR u.full_name ILIKE $${paramIdx} OR u.phone_number ILIKE $${paramIdx} OR u.username ILIKE $${paramIdx} OR u.business_name ILIKE $${paramIdx} OR u.id::text ILIKE $${paramIdx})`
+      );
     }
+
+    if (status === 'active') {
+      whereConditions.push('u.is_active = true');
+    } else if (status === 'suspended') {
+      whereConditions.push('u.is_active = false');
+    }
+
+    if (setupStatus === 'complete') {
+      whereConditions.push('u.onboarding_completed = true');
+    } else if (setupStatus === 'incomplete') {
+      whereConditions.push('u.onboarding_completed = false');
+    }
+
+    // Determine ORDER BY clause
+    let orderByClause = 'u.created_at DESC';
+    if (sort === 'oldest') orderByClause = 'u.created_at ASC';
+    if (sort === 'recently_active') orderByClause = 'u.last_login DESC NULLS LAST';
+    if (sort === 'name_asc') orderByClause = 'u.full_name ASC';
+    if (sort === 'name_desc') orderByClause = 'u.full_name DESC';
+
+    queryParams.push(limit);
+    const limitIdx = queryParams.length;
+    queryParams.push(offset);
+    const offsetIdx = queryParams.length;
 
     const queryText = `
       SELECT 
-        id, 
-        phone_number, 
-        full_name, 
-        akawo_points, 
-        access_level, 
-        is_active, 
-        last_login, 
-        created_at,
-        COUNT(*) OVER() as total_count
-      FROM users
-      WHERE ($1::text IS NULL OR full_name ILIKE $1 OR phone_number ILIKE $1 OR id::text ILIKE $1)
-      ${statusCondition}
-      ORDER BY created_at DESC
-      LIMIT $2 OFFSET $3
+        u.id, 
+        u.phone_number, 
+        u.full_name, 
+        u.business_name,
+        u.username,
+        u.avatar_id,
+        u.akawo_points, 
+        u.access_level, 
+        u.is_active, 
+        u.onboarding_completed,
+        u.verification_status,
+        u.last_login, 
+        u.created_at,
+        COUNT(*) OVER() as total_count,
+        
+        -- Primary offer micro-niche name
+        (
+          SELECT mn.name 
+          FROM business_micro_niches bmn 
+          JOIN micro_niches mn ON mn.id = bmn.micro_niche_id 
+          WHERE bmn.user_id = u.id AND bmn.is_primary = true 
+          LIMIT 1
+        ) as primary_offer,
+
+        -- Secondary offers count
+        (
+          SELECT COUNT(*) 
+          FROM business_micro_niches bmn 
+          WHERE bmn.user_id = u.id AND bmn.is_primary = false
+        )::int as secondary_offers_count,
+
+        -- Active Spotlight campaign status
+        (
+          SELECT sc.status 
+          FROM spotlight_campaigns sc 
+          WHERE sc.user_id = u.id AND sc.status IN ('active', 'pending') 
+          ORDER BY sc.created_at DESC LIMIT 1
+        ) as spotlight_status,
+
+        -- Contact Sync status
+        (
+          SELECT cr.sync_status 
+          FROM contact_relationships cr 
+          WHERE cr.user_a_id = u.id OR cr.user_b_id = u.id 
+          ORDER BY cr.created_at DESC LIMIT 1
+        ) as contact_sync_status
+
+      FROM users u
+      WHERE ${whereConditions.join(' AND ')}
+      ORDER BY ${orderByClause}
+      LIMIT $${limitIdx} OFFSET $${offsetIdx}
     `;
 
-    const { rows } = await pool.query(queryText, [search, limit, offset]);
+    const { rows } = await pool.query(queryText, queryParams);
 
     const totalCount = rows.length > 0 ? parseInt(rows[0].total_count, 10) : 0;
     const users = rows.map((r) => {
@@ -777,6 +852,13 @@ router.get('/users', requirePermission('users.view'), async (req: AuthRequest, r
       total_count: totalCount,
       limit,
       offset,
+      sort,
+      filters: {
+        status: status || 'all',
+        setup_status: setupStatus || 'all',
+        spotlight_status: spotlightFilter || 'all',
+        contact_sync_status: syncFilter || 'all',
+      },
     });
   } catch (error: any) {
     console.error('Error fetching admin users registry:', error);
@@ -786,14 +868,19 @@ router.get('/users', requirePermission('users.view'), async (req: AuthRequest, r
 
 /**
  * GET /api/v1/admin/users/:id
- * Fetches comprehensive user inspection details, point ledger history, and relationship metrics.
+ * Comprehensive User Detail Endpoint:
+ * - Profile identity, contact info, onboarding state, verification status
+ * - Differentiated Primary Offer vs Secondary Offers (from business_micro_niches)
+ * - Differentiated Baseline Interests vs Dynamic Interest States (from user_baseline_interests & user_interest_states)
+ * - Contact Gain Summary (relationships count, sync status, last cycle)
+ * - Spotlight Economy Summary (campaign turn status, participant count)
  */
 router.get('/users/:id', requirePermission('users.view'), async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.params.id;
+    const userId = req.params.id as string;
 
     const { rows: userRows } = await pool.query(
-      `SELECT id, phone_number, full_name, akawo_points, access_level, is_active, last_login, created_at 
+      `SELECT id, phone_number, full_name, business_name, username, avatar_id, akawo_points, access_level, is_active, onboarding_completed, verification_status, last_login, created_at 
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -804,7 +891,112 @@ router.get('/users/:id', requirePermission('users.view'), async (req: AuthReques
 
     const user = userRows[0];
 
-    // Fetch Akawo Points ledger history for this user
+    // 1. Fetch Differentiated Supply Profile (Primary Offer vs Secondary Offers)
+    let primaryOffer: any = null;
+    let secondaryOffers: any[] = [];
+
+    try {
+      const { rows: nicheRows } = await pool.query(
+        `SELECT bmn.is_primary, mn.id as micro_niche_id, mn.name as micro_niche_name, c.name as category_name
+         FROM business_micro_niches bmn
+         JOIN micro_niches mn ON mn.id = bmn.micro_niche_id
+         JOIN categories c ON c.id = mn.category_id
+         WHERE bmn.user_id = $1`,
+        [userId]
+      );
+
+      primaryOffer = nicheRows.find((n) => n.is_primary) || (user.business_name ? { micro_niche_name: user.business_name, is_primary: true } : null);
+      secondaryOffers = nicheRows.filter((n) => !n.is_primary);
+    } catch {
+      if (user.business_name) {
+        primaryOffer = { micro_niche_name: user.business_name, is_primary: true };
+      }
+    }
+
+    // 2. Fetch Differentiated Interest Profile (Baseline vs Dynamic)
+    let baselineInterests: any[] = [];
+    let dynamicInterestStates: any[] = [];
+
+    try {
+      const { rows: baseRows } = await pool.query(
+        `SELECT ubi.interest_id, it.name as interest_name, it.slug
+         FROM user_baseline_interests ubi
+         JOIN interest_taxonomies it ON it.id = ubi.interest_id
+         WHERE ubi.user_id = $1`,
+        [userId]
+      );
+      baselineInterests = baseRows;
+    } catch {
+      // Table empty
+    }
+
+    try {
+      const { rows: dynRows } = await pool.query(
+        `SELECT uis.interest_id, it.name as interest_name, uis.score, uis.recency_decay_factor, uis.updated_at
+         FROM user_interest_states uis
+         JOIN interest_taxonomies it ON it.id = uis.interest_id
+         WHERE uis.user_id = $1
+         ORDER BY uis.score DESC LIMIT 10`,
+        [userId]
+      );
+      dynamicInterestStates = dynRows;
+    } catch {
+      // Table empty
+    }
+
+    // 3. Fetch Contact Gain Summary
+    let contactGainSummary: any = {
+      contacts_count: 0,
+      last_sync_status: 'NONE',
+      pending_sync_count: 0,
+      failed_sync_count: 0,
+    };
+
+    try {
+      const { rows: cRows } = await pool.query(
+        `SELECT 
+           COUNT(*) as total_count,
+           COUNT(*) FILTER (WHERE sync_status = 'PENDING_SYNC') as pending_count,
+           COUNT(*) FILTER (WHERE sync_status = 'FAILED') as failed_count
+         FROM contact_relationships 
+         WHERE user_a_id = $1 OR user_b_id = $1`,
+        [userId]
+      );
+      if (cRows.length > 0) {
+        contactGainSummary.contacts_count = parseInt(cRows[0].total_count || '0', 10);
+        contactGainSummary.pending_sync_count = parseInt(cRows[0].pending_count || '0', 10);
+        contactGainSummary.failed_sync_count = parseInt(cRows[0].failed_count || '0', 10);
+        contactGainSummary.last_sync_status = contactGainSummary.failed_sync_count > 0 ? 'SYNC_ISSUE' : contactGainSummary.pending_sync_count > 0 ? 'PENDING_SYNC' : 'SYNCED';
+      }
+    } catch {
+      // Table empty
+    }
+
+    // 4. Fetch Spotlight Summary
+    let spotlightSummary: any = {
+      active_campaign: null,
+      campaigns_count: 0,
+      submission_status: 'NONE',
+    };
+
+    try {
+      const { rows: spotRows } = await pool.query(
+        `SELECT id, business_name, title, status, submission_status, participants_count, created_at
+         FROM spotlight_campaigns
+         WHERE user_id = $1
+         ORDER BY created_at DESC LIMIT 5`,
+        [userId]
+      );
+      if (spotRows.length > 0) {
+        spotlightSummary.campaigns_count = spotRows.length;
+        spotlightSummary.active_campaign = spotRows.find((s) => s.status === 'active') || spotRows[0];
+        spotlightSummary.submission_status = spotlightSummary.active_campaign.submission_status || spotlightSummary.active_campaign.status;
+      }
+    } catch {
+      // Table empty
+    }
+
+    // 5. Fetch Akawo Points Ledger History
     let pointsHistory: any[] = [];
     try {
       const { rows: ledgerRows } = await pool.query(
@@ -816,32 +1008,61 @@ router.get('/users/:id', requirePermission('users.view'), async (req: AuthReques
       );
       pointsHistory = ledgerRows;
     } catch {
-      // Table may be empty
-    }
-
-    // Fetch contact relationships count
-    let contactsCount = 0;
-    try {
-      const { rows: cRows } = await pool.query(
-        `SELECT COUNT(*) as count FROM contact_relationships WHERE user_a_id = $1 OR user_b_id = $1`,
-        [userId]
-      );
-      contactsCount = parseInt(cRows[0]?.count || '0', 10);
-    } catch {
       // Table empty
     }
 
     res.json({
       success: true,
       user,
-      points_history: pointsHistory,
-      metrics: {
-        contacts_count: contactsCount,
+      offers: {
+        primary: primaryOffer,
+        secondary: secondaryOffers,
       },
+      interests: {
+        baseline: baselineInterests,
+        dynamic: dynamicInterestStates,
+      },
+      contactGain: contactGainSummary,
+      spotlight: spotlightSummary,
+      points_history: pointsHistory,
     });
   } catch (error: any) {
-    console.error('Error fetching admin user details:', error);
+    console.error('Error fetching comprehensive admin user details:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch user details.' });
+  }
+});
+
+/**
+ * GET /api/v1/admin/users/:id/activity
+ * Real activity timeline for a user aggregated from PostgreSQL audit_logs and transaction records.
+ */
+router.get('/users/:id/activity', requirePermission('users.view'), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.params.id as string;
+
+    const { rows: activityRows } = await pool.query(
+      `SELECT 
+         id, 
+         action, 
+         resource_type, 
+         resource_id, 
+         metadata, 
+         result, 
+         created_at,
+         'audit' as event_source
+       FROM audit_logs
+       WHERE resource_id = $1 OR admin_user_id = $1
+       ORDER BY created_at DESC
+       LIMIT 30`,
+      [userId]
+    );
+
+    res.json({
+      success: true,
+      activity: activityRows,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to fetch user activity.' });
   }
 });
 

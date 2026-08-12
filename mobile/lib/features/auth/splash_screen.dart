@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:hugeicons/hugeicons.dart';
 import '../../core/providers/auth_state_provider.dart';
+import '../../core/widgets/bizsquare_loader.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -86,30 +86,36 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // App Icon Container
+                  // App Real Brand Logo Container
                   Container(
-                    width: 76,
-                    height: 76,
+                    width: 80,
+                    height: 80,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0058FF),
+                      color: isDark ? const Color(0xFF131C31) : Colors.white,
                       borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0),
+                        width: 1.5,
+                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF0058FF).withValues(alpha: 0.35),
-                          blurRadius: 24,
-                          offset: const Offset(0, 8),
+                          color: const Color(0xFF0058FF).withValues(alpha: isDark ? 0.25 : 0.12),
+                          blurRadius: 28,
+                          offset: const Offset(0, 10),
                         ),
                       ],
                     ),
-                    child: const Center(
-                      child: HugeIcon(
-                        icon: HugeIcons.strokeRoundedFlash,
-                        color: Colors.white,
-                        size: 38,
+                    padding: const EdgeInsets.all(12),
+                    child: Image.asset(
+                      'assets/images/bizsquare_icon.png',
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => Image.asset(
+                        'assets/images/bizsquare_icon_nobg.png',
+                        fit: BoxFit.contain,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 22),
 
                   // Brand Name
                   Text(
@@ -132,17 +138,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
                       color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                     ),
                   ),
-                  const SizedBox(height: 48),
+                  const SizedBox(height: 44),
 
-                  // Minimal Loader
-                  const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0058FF)),
-                    ),
-                  ),
+                  // Custom Branded BizSquare Animated Loader
+                  const BizSquareLoader(size: 36),
                 ],
               ),
             ),

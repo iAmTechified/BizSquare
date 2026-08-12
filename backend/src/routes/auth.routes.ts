@@ -6,10 +6,11 @@ const router = Router();
 
 /**
  * POST /api/v1/auth/verify-and-register
+ * POST /api/v1/auth/verify-code (Alias)
  * Step 3: Atomic verification + account creation.
  * This is the FIRST backend write during onboarding.
  */
-router.post('/verify-and-register', async (req: Request, res: Response) => {
+const handleVerifyAndRegister = async (req: Request, res: Response) => {
   try {
     const { code, phoneNumber, businessName, fullName, avatarId, microNicheIds, primaryMicroNicheId } = req.body;
 
@@ -44,7 +45,10 @@ router.post('/verify-and-register', async (req: Request, res: Response) => {
 
     res.status(500).json({ error: error.message });
   }
-});
+};
+
+router.post('/verify-and-register', handleVerifyAndRegister);
+router.post('/verify-code', handleVerifyAndRegister);
 
 /**
  * POST /api/v1/auth/complete-onboarding

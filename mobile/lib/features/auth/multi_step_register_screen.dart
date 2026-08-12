@@ -13,6 +13,7 @@ import '../../core/services/api_service.dart';
 import '../../core/utils/phone_normalizer.dart';
 import '../../core/widgets/animated_critter_avatar.dart';
 import '../../core/widgets/avatar_picker_sheet.dart';
+import '../../core/widgets/bizsquare_loader.dart';
 import '../../core/widgets/bizsquare_text_field.dart';
 import '../../core/services/avatar_service.dart';
 
@@ -24,7 +25,7 @@ class MultiStepRegisterScreen extends ConsumerStatefulWidget {
 }
 
 class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScreen> {
-  int _step = 1;
+  int _step = 1; // 1: Profile, 2: Mainly Sell, 3: Other Sell, 4: Passcode, 5: PIN, 6: Username & Interests
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -32,21 +33,20 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
   final _businessNameController = TextEditingController();
   final _phoneController = TextEditingController();
 
-  // Step 2 Micro-Niche State (Two-Step Collapsible Accordion & Mutual Exclusion)
+  // Step 2 & 3 Micro-Niche State
   String? _primaryMicroNicheId;
   final Set<String> _secondaryMicroNicheIds = {};
   String _nicheSearchQuery = '';
   String? _expandedCategoryId;
-  bool _isSelectingPrimaryMode = true;
 
-  // Step 3 Verification Code Controller
+  // Step 4 Verification Code Controller
   final _verificationCodeController = TextEditingController();
 
-  // Step 4 Security PIN Controller
+  // Step 5 Security PIN Controller
   final _pinController = TextEditingController();
   final _pinConfirmController = TextEditingController();
 
-  // Step 5 Username & Interests
+  // Step 6 Username & Interests
   final _usernameController = TextEditingController();
   bool _isCheckingUsername = false;
   bool? _isUsernameAvailable;
@@ -61,7 +61,7 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
 
   void _restoreDraftState() {
     final draft = ref.read(onboardingDraftProvider);
-    _step = draft.currentStep;
+    _step = draft.currentStep > 6 ? 6 : draft.currentStep;
     _businessNameController.text = draft.businessName ?? '';
     _phoneController.text = draft.phoneNumber ?? '';
 
@@ -76,8 +76,6 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
     if (_primaryMicroNicheId == null && draft.selectedMicroNicheIds.isNotEmpty) {
       _primaryMicroNicheId = draft.selectedMicroNicheIds.first;
     }
-
-    _isSelectingPrimaryMode = _primaryMicroNicheId == null;
 
     _verificationCodeController.text = draft.verificationCode ?? '';
     _pinController.text = draft.pin ?? '';
@@ -165,22 +163,32 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
 
       setState(() => _step = 2);
     } else if (_step == 2) {
+      // Step 2: "What do you sell mainly?"
       if (_primaryMicroNicheId == null) {
-        setState(() => _errorMessage = 'Please choose the main thing you sell first.');
+        setState(() => _errorMessage = 'Please select the main product line you sell.');
         return;
       }
 
+      await ref.read(onboardingDraftProvider.notifier).updateStep2(
+        microNicheIds: [_primaryMicroNicheId!],
+        primaryMicroNicheId: _primaryMicroNicheId!,
+      );
+
+      setState(() => _step = 3);
+    } else if (_step == 3) {
+      // Step 3: "Do you sell any other things?"
       final allNiches = _allSelectedMicroNiches;
       await ref.read(onboardingDraftProvider.notifier).updateStep2(
         microNicheIds: allNiches,
         primaryMicroNicheId: _primaryMicroNicheId!,
       );
 
-      setState(() => _step = 3);
-    } else if (_step == 3) {
+      setState(() => _step = 4);
+    } else if (_step == 4) {
+      // Step 4: Verification Code
       final code = _verificationCodeController.text.trim().toUpperCase();
       if (code.isEmpty || code.length < 4) {
-        setState(() => _errorMessage = 'Please enter the setup passcode.');
+        setState(() => _errorMessage = 'Please enter your passcode.');
         return;
       }
 
@@ -215,18 +223,18 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
 
         setState(() {
           _isLoading = false;
-          _step = 4;
+          _step = 5;
         });
       } on ApiException catch (e) {
         debugPrint('Register verify error: ${e.message}');
         setState(() {
           _isLoading = false;
           if (e.code == 'INVALID_CODE') {
-            _errorMessage = 'Invalid Passcode. In dev mode, please use B41230.';
+            _errorMessage = 'Invalid Passcode. Please verify your code and try again.';
           } else if (e.code == 'CODE_ALREADY_USED') {
             _errorMessage = 'This passcode has already been claimed.';
           } else if (e.code == 'CODE_EXPIRED') {
-            _errorMessage = 'This passcode has expired. In dev mode, please use B41230.';
+            _errorMessage = 'This passcode has expired.';
           } else if (e.code == 'PHONE_ALREADY_REGISTERED') {
             _errorMessage = 'This phone number is already registered. Please sign in instead.';
           } else {
@@ -240,7 +248,8 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
           _errorMessage = 'Connection error. Please check your internet and try again.';
         });
       }
-    } else if (_step == 4) {
+    } else if (_step == 5) {
+      // Step 5: Security PIN
       final pin = _pinController.text.trim();
       final pinConfirm = _pinConfirmController.text.trim();
 
@@ -254,8 +263,9 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
       }
 
       await ref.read(onboardingDraftProvider.notifier).updateStep4Pin(pin: pin);
-      setState(() => _step = 5);
-    } else if (_step == 5) {
+      setState(() => _step = 6);
+    } else if (_step == 6) {
+      // Step 6: Username & Interests
       final username = _usernameController.text.trim().replaceAll('@', '');
       if (username.length < 3) {
         setState(() => _errorMessage = 'Username must be at least 3 characters.');
@@ -298,20 +308,26 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
           _errorMessage = 'Unable to complete setup. Please check your details and retry.';
         });
       } catch (e) {
-        debugPrint('Complete onboarding error: $e');
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Failed to complete registration. Please check your internet.';
+          _errorMessage = 'Network timeout. Please tap finish to retry.';
         });
       }
     }
   }
 
+  void _handleSkipSecondary() {
+    setState(() => _errorMessage = null);
+    HapticFeedback.lightImpact();
+    _secondaryMicroNicheIds.clear();
+    setState(() => _step = 4);
+  }
+
   void _handleBack() {
     setState(() => _errorMessage = null);
-    if (_step > 1 && _step != 4) {
+    if (_step > 1) {
       setState(() => _step--);
-    } else if (_step == 1) {
+    } else {
       context.go('/auth-wall');
     }
   }
@@ -321,146 +337,156 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _handleBack();
-      },
-      child: Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor,
-        appBar: AppBar(
-          backgroundColor: theme.scaffoldBackgroundColor,
-          elevation: 0,
-          leading: IconButton(
-            icon: HugeIcon(
-              icon: HugeIcons.strokeRoundedArrowLeft01,
-              color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
-              size: 22,
-            ),
-            onPressed: () {
-              HapticFeedback.selectionClick();
-              _handleBack();
-            },
-          ),
-          title: Text(
-            'Step $_step of 5',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-            ),
-          ),
-          centerTitle: true,
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const HugeIcon(icon: HugeIcons.strokeRoundedArrowLeft01, color: Colors.indigo),
+          onPressed: _handleBack,
         ),
-        body: SafeArea(
-          child: Column(
-            children: [
-              // Progress Line
-              Container(
-                height: 3,
-                width: double.infinity,
-                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-                child: FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: (_step / 5).clamp(0.0, 1.0),
-                  child: Container(color: const Color(0xFF0058FF)),
-                ),
-              ),
+        title: Text(
+          'Step $_step of 6',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Top Progress Indicator
+            LinearProgressIndicator(
+              value: _step / 6,
+              backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF0058FF)),
+              minHeight: 4,
+            ),
 
-              // Content Area
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Friendly Error Banner
-                      if (_errorMessage != null) ...[
-                        Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEF4444).withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
-                          ),
-                          child: Row(
-                            children: [
-                              const HugeIcon(
-                                icon: HugeIcons.strokeRoundedAlertCircle,
-                                color: Color(0xFFEF4444),
-                                size: 18,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  _errorMessage!,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFFEF4444),
-                                  ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (_errorMessage != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const HugeIcon(
+                              icon: HugeIcons.strokeRoundedAlertCircle,
+                              color: Color(0xFFEF4444),
+                              size: 18,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _errorMessage!,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFFEF4444),
                                 ),
                               ),
-                            ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Render Current Step
+                    if (_step == 1) _buildStep1BusinessInfo(isDark),
+                    if (_step == 2) _buildStep2WhatDoYouSellMainly(isDark),
+                    if (_step == 3) _buildStep3DoYouSellAnyOtherThings(isDark),
+                    if (_step == 4) _buildStep4SetupCode(isDark),
+                    if (_step == 5) _buildStep5SecurityPin(isDark),
+                    if (_step == 6) _buildStep6UsernameAndInterests(isDark),
+
+                    const SizedBox(height: 32),
+                  ],
+                ),
+              ),
+            ),
+
+            // Bottom CTAs
+            Container(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+              decoration: BoxDecoration(
+                color: theme.scaffoldBackgroundColor,
+                border: Border(
+                  top: BorderSide(
+                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                    width: 0.8,
+                  ),
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_step == 3) ...[
+                    // Obvious "No, Continue" Secondary Action
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: _handleSkipSecondary,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          side: BorderSide(
+                            color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                            width: 1.2,
+                          ),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: Text(
+                          'No, Continue',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        const SizedBox(height: 16),
-                      ],
-
-                      // Render Current Step
-                      if (_step == 1) _buildStep1BusinessInfo(isDark),
-                      if (_step == 2) _buildStep2OffersDifferentiation(isDark),
-                      if (_step == 3) _buildStep3SetupCode(isDark),
-                      if (_step == 4) _buildStep4SecurityPin(isDark),
-                      if (_step == 5) _buildStep5UsernameAndInterests(isDark),
-
-                      const SizedBox(height: 32),
-                    ],
-                  ),
-                ),
-              ),
-
-              // Bottom CTA
-              Container(
-                padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
-                decoration: BoxDecoration(
-                  color: theme.scaffoldBackgroundColor,
-                  border: Border(
-                    top: BorderSide(
-                      color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-                      width: 0.8,
+                      ),
                     ),
-                  ),
-                ),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _handleNext,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0058FF),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                        : Text(
-                            _step == 5 ? 'Complete Registration' : 'Continue',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
+                    const SizedBox(height: 10),
+                  ],
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _handleNext,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0058FF),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: _isLoading
+                          ? const BizSquareLoader(size: 24)
+                          : Text(
+                              _step == 6 ? 'Complete Registration' : 'Continue',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                          ),
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -486,7 +512,7 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
         ),
         const SizedBox(height: 6),
         Text(
-          'Choose your animated companion avatar and provide your WhatsApp details.',
+          'Choose your companion avatar and enter your WhatsApp business details.',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 14,
             color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
@@ -494,7 +520,7 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
         ),
         const SizedBox(height: 24),
 
-        // Avatar Picker Centerpiece
+        // Animated Critter Avatar Picker Trigger
         Center(
           child: Column(
             children: [
@@ -581,9 +607,9 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
   }
 
   // ==========================================
-  // STEP 2: OFFERS DIFFERENTIATION (TWO-STEP COLLAPSIBLE ACCORDION)
+  // STEP 2: "WHAT DO YOU SELL MAINLY?"
   // ==========================================
-  Widget _buildStep2OffersDifferentiation(bool isDark) {
+  Widget _buildStep2WhatDoYouSellMainly(bool isDark) {
     final theme = Theme.of(context);
     final categories = MicroNicheTaxonomy.categories;
     final primaryNiche = _primaryMicroNicheId != null
@@ -604,7 +630,7 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'What do you sell?',
+          'What do you sell mainly?',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 26,
             fontWeight: FontWeight.w800,
@@ -614,297 +640,137 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
         ),
         const SizedBox(height: 6),
         Text(
-          'Specify your primary product focus, followed by any secondary lines.',
+          'Select the single main product line your business supplies. This forms your core network identity.',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 14,
             color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
           ),
         ),
-        const SizedBox(height: 24),
-
-        // SECTION 1: PRIMARY OFFER (COLLAPSIBLE)
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF161E2E) : Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: _isSelectingPrimaryMode
-                  ? const Color(0xFF0058FF)
-                  : (isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0)),
-              width: _isSelectingPrimaryMode ? 1.8 : 1.2,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0058FF),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'PRIMARY OFFER',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Main Focus (1 of 1)',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (!_isSelectingPrimaryMode && _primaryMicroNicheId != null)
-                    GestureDetector(
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        setState(() => _isSelectingPrimaryMode = true);
-                      },
-                      child: Text(
-                        'Change',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF0058FF),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'What is the main thing you sell or deal on?',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                primaryNiche != null
-                    ? 'Selected: ${primaryNiche.name}'
-                    : 'Choose your main trade category from the options below.',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  color: primaryNiche != null
-                      ? const Color(0xFF0058FF)
-                      : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
-                  fontWeight: primaryNiche != null ? FontWeight.w700 : FontWeight.w500,
-                ),
-              ),
-
-              // If in primary selection mode, show option selection
-              if (_isSelectingPrimaryMode) ...[
-                const SizedBox(height: 16),
-                _buildKeyboardNicheSelector(
-                  categories: filteredCategories,
-                  excludedIds: _secondaryMicroNicheIds,
-                  selectedId: _primaryMicroNicheId,
-                  onSelect: (id) {
-                    setState(() {
-                      _primaryMicroNicheId = id;
-                      _isSelectingPrimaryMode = false;
-                      _errorMessage = null;
-                    });
-                  },
-                  isDark: isDark,
-                  theme: theme,
-                ),
-              ],
-            ],
-          ),
-        ),
-
         const SizedBox(height: 20),
 
-        // SECTION 2: SECONDARY OFFERS (EXPANDS WHEN PRIMARY IS SET)
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF161E2E) : Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: !_isSelectingPrimaryMode
-                  ? const Color(0xFF0058FF)
-                  : (isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0)),
-              width: !_isSelectingPrimaryMode ? 1.8 : 1.2,
+        // Selected Primary Niche Chip Display
+        if (primaryNiche != null) ...[
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0058FF).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFF0058FF), width: 1.5),
             ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
+            child: Row(
+              children: [
+                const HugeIcon(
+                  icon: HugeIcons.strokeRoundedCheckmarkBadge01,
+                  color: Color(0xFF0058FF),
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'SECONDARY OFFERS',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
-                            letterSpacing: 0.5,
-                          ),
+                      Text(
+                        'MAIN PRIMARY PRODUCT',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF0058FF),
+                          letterSpacing: 0.5,
                         ),
                       ),
-                      const SizedBox(width: 8),
                       Text(
-                        'Optional (${_secondaryMicroNicheIds.length}/2)',
+                        primaryNiche.name,
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
                         ),
                       ),
                     ],
                   ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Are there other things you sell?',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _isSelectingPrimaryMode
-                    ? 'Select your primary offering above to unlock secondary options.'
-                    : 'Choose up to 2 additional product lines.',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                ),
-              ),
-
-              if (!_isSelectingPrimaryMode) ...[
-                const SizedBox(height: 16),
-                _buildKeyboardNicheMultiSelector(
-                  categories: filteredCategories,
-                  excludedId: _primaryMicroNicheId,
-                  selectedIds: _secondaryMicroNicheIds,
-                  onToggle: (id) {
-                    setState(() {
-                      if (_secondaryMicroNicheIds.contains(id)) {
-                        _secondaryMicroNicheIds.remove(id);
-                      } else {
-                        if (_secondaryMicroNicheIds.length < 2) {
-                          _secondaryMicroNicheIds.add(id);
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('You can select up to 2 secondary offerings.')),
-                          );
-                        }
-                      }
-                    });
-                  },
-                  isDark: isDark,
-                  theme: theme,
                 ),
               ],
-            ],
+            ),
           ),
-        ),
-      ],
-    );
-  }
+          const SizedBox(height: 18),
+        ],
 
-  Widget _buildKeyboardNicheSelector({
-    required List<dynamic> categories,
-    required Set<String> excludedIds,
-    required String? selectedId,
-    required ValueChanged<String> onSelect,
-    required bool isDark,
-    required ThemeData theme,
-  }) {
-    return Column(
-      children: [
-        // Search Input
+        // Search Field
         BizSquareTextField(
-          label: 'Filter Categories',
-          hintText: 'Search micro-niches (e.g. Shoes, Laptops, Solar)...',
+          label: 'Search Product Lines',
+          hintText: 'e.g. Phones, Solar, Fabrics...',
           prefixIcon: HugeIcons.strokeRoundedSearch01,
           onChanged: (val) => setState(() => _nicheSearchQuery = val),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
 
-        // Accordion of Key Tiles
+        // Category Expandable Accordion List
         ListView.separated(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: categories.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 8),
-          itemBuilder: (context, i) {
-            final cat = categories[i];
-            final availableNiches = (cat.microNiches as List)
-                .where((mn) => !excludedIds.contains(mn.id))
-                .toList();
-
-            if (availableNiches.isEmpty) return const SizedBox.shrink();
+          itemCount: filteredCategories.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (context, idx) {
+            final cat = filteredCategories[idx];
+            final isExpanded = _expandedCategoryId == cat.id || _nicheSearchQuery.isNotEmpty;
 
             return Container(
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(12),
+                color: isDark ? const Color(0xFF161E2E) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                  color: isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0),
+                  width: 1.2,
                 ),
               ),
               child: Theme(
                 data: theme.copyWith(dividerColor: Colors.transparent),
                 child: ExpansionTile(
-                  key: Key('primary_${cat.id}'),
-                  initiallyExpanded: _expandedCategoryId == cat.id,
+                  key: Key(cat.id),
+                  initiallyExpanded: isExpanded,
                   onExpansionChanged: (exp) {
-                    setState(() => _expandedCategoryId = exp ? cat.id : null);
+                    if (exp) setState(() => _expandedCategoryId = cat.id);
                   },
                   title: Text(
                     cat.name,
-                    style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+                    ),
                   ),
+                  childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: availableNiches.map((mn) {
-                          final isSelected = selectedId == mn.id;
-                          return _buildNicheKeyTile(
-                            label: mn.name,
-                            isSelected: isSelected,
-                            onTap: () => onSelect(mn.id),
-                            isDark: isDark,
-                          );
-                        }).toList(),
-                      ),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: cat.microNiches.map((mn) {
+                        final isPrimary = _primaryMicroNicheId == mn.id;
+
+                        return ChoiceChip(
+                          selected: isPrimary,
+                          showCheckmark: false,
+                          label: Text(mn.name),
+                          labelStyle: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            fontWeight: isPrimary ? FontWeight.w700 : FontWeight.w500,
+                            color: isPrimary
+                                ? Colors.white
+                                : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155)),
+                          ),
+                          selectedColor: const Color(0xFF0058FF),
+                          backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                          onSelected: (sel) {
+                            HapticFeedback.selectionClick();
+                            setState(() {
+                              if (sel) {
+                                _primaryMicroNicheId = mn.id;
+                                _secondaryMicroNicheIds.remove(mn.id);
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
                     ),
                   ],
                 ),
@@ -916,145 +782,17 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
     );
   }
 
-  Widget _buildKeyboardNicheMultiSelector({
-    required List<dynamic> categories,
-    required String? excludedId,
-    required Set<String> selectedIds,
-    required ValueChanged<String> onToggle,
-    required bool isDark,
-    required ThemeData theme,
-  }) {
-    return Column(
-      children: [
-        ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: categories.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 8),
-          itemBuilder: (context, i) {
-            final cat = categories[i];
-            // STRICT MUTUAL EXCLUSION: Omit the primary niche from secondary options
-            final availableNiches = (cat.microNiches as List)
-                .where((mn) => mn.id != excludedId)
-                .toList();
-
-            if (availableNiches.isEmpty) return const SizedBox.shrink();
-
-            return Container(
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-                ),
-              ),
-              child: Theme(
-                data: theme.copyWith(dividerColor: Colors.transparent),
-                child: ExpansionTile(
-                  key: Key('secondary_${cat.id}'),
-                  title: Text(
-                    cat.name,
-                    style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700),
-                  ),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: availableNiches.map((mn) {
-                          final isSelected = selectedIds.contains(mn.id);
-                          return _buildNicheKeyTile(
-                            label: mn.name,
-                            isSelected: isSelected,
-                            onTap: () => onToggle(mn.id),
-                            isDark: isDark,
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNicheKeyTile({
-    required String label,
-    required bool isSelected,
-    required VoidCallback onTap,
-    required bool isDark,
-  }) {
-    return InkWell(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        onTap();
-      },
-      borderRadius: BorderRadius.circular(10),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? const Color(0xFF0058FF)
-              : (isDark ? const Color(0xFF161E2E) : Colors.white),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isSelected
-                ? const Color(0xFF0058FF)
-                : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
-            width: isSelected ? 1.5 : 1.0,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: const Color(0xFF0058FF).withValues(alpha: 0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isSelected) ...[
-              const HugeIcon(
-                icon: HugeIcons.strokeRoundedCheckmarkCircle02,
-                color: Colors.white,
-                size: 14,
-              ),
-              const SizedBox(width: 6),
-            ],
-            Text(
-              label,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected
-                    ? Colors.white
-                    : (isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   // ==========================================
-  // STEP 3: SETUP CODE (DEV B41230 SUPPORT)
+  // STEP 3: "DO YOU SELL ANY OTHER THINGS?"
   // ==========================================
-  Widget _buildStep3SetupCode(bool isDark) {
+  Widget _buildStep3DoYouSellAnyOtherThings(bool isDark) {
+    final categories = MicroNicheTaxonomy.categories;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Enter Setup Code',
+          'Do you sell any other things?',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 26,
             fontWeight: FontWeight.w800,
@@ -1064,7 +802,130 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
         ),
         const SizedBox(height: 6),
         Text(
-          'Enter your invite passcode. For testing, you may use the developer code below.',
+          'Select up to 2 secondary product lines you supply. Your main product is already saved.',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Search Field
+        BizSquareTextField(
+          label: 'Search Secondary Lines',
+          hintText: 'e.g. Accessories, Repairs, Spare Parts...',
+          prefixIcon: HugeIcons.strokeRoundedSearch01,
+          onChanged: (val) => setState(() => _nicheSearchQuery = val),
+        ),
+        const SizedBox(height: 16),
+
+        // Category Accordion List for Secondary
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: categories.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (context, idx) {
+            final cat = categories[idx];
+
+            return Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF161E2E) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0),
+                  width: 1.2,
+                ),
+              ),
+              child: ExpansionTile(
+                initiallyExpanded: idx == 0 || _nicheSearchQuery.isNotEmpty,
+                title: Text(
+                  cat.name,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+                  ),
+                ),
+                childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: cat.microNiches.map((mn) {
+                      final isPrimary = _primaryMicroNicheId == mn.id;
+                      final isSecondary = _secondaryMicroNicheIds.contains(mn.id);
+
+                      if (isPrimary) {
+                        return Chip(
+                          label: Text('${mn.name} (Main)'),
+                          backgroundColor: const Color(0xFF0058FF).withValues(alpha: 0.15),
+                          labelStyle: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF0058FF),
+                          ),
+                        );
+                      }
+
+                      return FilterChip(
+                        selected: isSecondary,
+                        showCheckmark: false,
+                        label: Text(mn.name),
+                        labelStyle: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: isSecondary ? FontWeight.w700 : FontWeight.w500,
+                          color: isSecondary
+                              ? Colors.white
+                              : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155)),
+                        ),
+                        selectedColor: const Color(0xFF10B981),
+                        backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                        onSelected: (sel) {
+                          HapticFeedback.selectionClick();
+                          setState(() {
+                            if (sel) {
+                              if (_secondaryMicroNicheIds.length >= 2) {
+                                _errorMessage = 'You can select up to 2 secondary products.';
+                                return;
+                              }
+                              _secondaryMicroNicheIds.add(mn.id);
+                            } else {
+                              _secondaryMicroNicheIds.remove(mn.id);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  // ==========================================
+  // STEP 4: SETUP CODE (DEV B41230 SUPPORTED SILENTLY)
+  // ==========================================
+  Widget _buildStep4SetupCode(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Verification Passcode',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
+            color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+            letterSpacing: -0.6,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Enter the verification passcode sent to your WhatsApp number.',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 14,
             color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
@@ -1072,93 +933,26 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
         ),
         const SizedBox(height: 24),
 
-        // Dev Code Helper Card
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF0058FF).withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFF0058FF).withValues(alpha: 0.25)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const HugeIcon(
-                    icon: HugeIcons.strokeRoundedFlash,
-                    color: Color(0xFF0058FF),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Developer Passcode',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF0058FF),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'In dev mode, use passcode B41230. In production, use your verified admin invite code.',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
-                  height: 1.35,
-                ),
-              ),
-              const SizedBox(height: 10),
-              GestureDetector(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  setState(() {
-                    _verificationCodeController.text = 'B41230';
-                  });
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0058FF),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'Tap to Fill "B41230"',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 28),
-
         BizSquareTextField(
-          label: 'Setup Passcode',
-          hintText: 'B41230',
+          label: 'Passcode',
+          hintText: 'e.g. B41230',
           controller: _verificationCodeController,
-          prefixIcon: HugeIcons.strokeRoundedKey01,
+          prefixIcon: HugeIcons.strokeRoundedCheckmarkBadge01,
+          keyboardType: TextInputType.text,
         ),
       ],
     );
   }
 
   // ==========================================
-  // STEP 4: SECURITY PIN SETUP
+  // STEP 5: SECURITY PIN CREATION
   // ==========================================
-  Widget _buildStep4SecurityPin(bool isDark) {
+  Widget _buildStep5SecurityPin(bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Create Security PIN',
+          'Create 4-Digit PIN',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 26,
             fontWeight: FontWeight.w800,
@@ -1168,13 +962,13 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
         ),
         const SizedBox(height: 6),
         Text(
-          'Set a 4-digit PIN to secure your business account.',
+          'Choose a 4-digit PIN to secure your account for instant sign in.',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 14,
             color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
           ),
         ),
-        const SizedBox(height: 28),
+        const SizedBox(height: 24),
 
         BizSquareTextField(
           label: '4-Digit PIN',
@@ -1183,38 +977,34 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
           obscureText: true,
           keyboardType: TextInputType.number,
           maxLength: 4,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          prefixIcon: HugeIcons.strokeRoundedLockPassword,
+          prefixIcon: HugeIcons.strokeRoundedLockKey,
         ),
         const SizedBox(height: 20),
 
         BizSquareTextField(
-          label: 'Confirm 4-Digit PIN',
+          label: 'Confirm PIN',
           hintText: '••••',
           controller: _pinConfirmController,
           obscureText: true,
           keyboardType: TextInputType.number,
           maxLength: 4,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          prefixIcon: HugeIcons.strokeRoundedCheckmarkBadge01,
+          prefixIcon: HugeIcons.strokeRoundedLockKey,
         ),
       ],
     );
   }
 
   // ==========================================
-  // STEP 5: USERNAME & INTERESTS (ANTI-ECHO-CHAMBER)
+  // STEP 6: USERNAME & INTERESTS
   // ==========================================
-  Widget _buildStep5UsernameAndInterests(bool isDark) {
-    final theme = Theme.of(context);
+  Widget _buildStep6UsernameAndInterests(bool isDark) {
     final categories = MicroNicheTaxonomy.categories;
-    final ownNiches = _allSelectedMicroNiches.toSet();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Handle & Interests',
+          'Claim Username & Interests',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 26,
             fontWeight: FontWeight.w800,
@@ -1224,7 +1014,7 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
         ),
         const SizedBox(height: 6),
         Text(
-          'Choose your unique @username and select products you want to discover.',
+          'Choose your @handle and select what products you want to buy or source.',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 14,
             color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
@@ -1233,135 +1023,148 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
         const SizedBox(height: 24),
 
         BizSquareTextField(
-          label: 'Business Username',
-          hintText: 'e.g. adebayo_stores',
+          label: 'Username (@handle)',
+          hintText: 'e.g. adebayo_store',
           controller: _usernameController,
+          prefixIcon: HugeIcons.strokeRoundedAt,
           onChanged: _onUsernameChanged,
-          prefixIcon: HugeIcons.strokeRoundedUser,
-          suffix: _isCheckingUsername
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: Center(
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0058FF)),
-                  ),
-                )
-              : (_isUsernameAvailable == true
-                  ? const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: HugeIcon(
-                        icon: HugeIcons.strokeRoundedCheckmarkCircle02,
-                        color: Color(0xFF10B981),
-                        size: 20,
-                      ),
-                    )
-                  : (_isUsernameAvailable == false
-                      ? const Padding(
-                          padding: EdgeInsets.all(12),
-                          child: HugeIcon(
-                            icon: HugeIcons.strokeRoundedCancelCircle,
-                            color: Color(0xFFEF4444),
-                            size: 20,
-                          ),
-                        )
-                      : null)),
         ),
+
+        if (_isCheckingUsername) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 1.8),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Checking username availability...',
+                style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        ] else if (_isUsernameAvailable != null) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(
+                _isUsernameAvailable! ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                color: _isUsernameAvailable! ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                size: 16,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                _isUsernameAvailable! ? 'Username is available!' : 'Username is taken.',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: _isUsernameAvailable! ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                ),
+              ),
+            ],
+          ),
+        ],
 
         const SizedBox(height: 28),
 
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'What do you need / buy?',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
-              ),
-            ),
-            Text(
-              '${_selectedInterestIds.length} / 5',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF0058FF),
-              ),
-            ),
-          ],
+        Text(
+          'Products You Want to Buy / Source',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+          ),
         ),
         const SizedBox(height: 4),
         Text(
-          'Select up to 5 business interests to tune your weekly contact matches.',
+          'Select categories to receive weekly matched suppliers.',
           style: GoogleFonts.plusJakartaSans(
-            fontSize: 12.5,
+            fontSize: 12,
             color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
 
         ListView.separated(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: categories.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 8),
-          itemBuilder: (context, i) {
-            final cat = categories[i];
-            final availableNiches = (cat.microNiches as List)
-                .where((mn) => !ownNiches.contains(mn.id))
-                .toList();
-
-            if (availableNiches.isEmpty) return const SizedBox.shrink();
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (context, idx) {
+            final cat = categories[idx];
 
             return Container(
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF161E2E) : Colors.white,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0),
+                  width: 1.2,
                 ),
               ),
-              child: Theme(
-                data: theme.copyWith(dividerColor: Colors.transparent),
-                child: ExpansionTile(
-                  key: Key('interests_${cat.id}'),
-                  title: Text(
-                    cat.name,
-                    style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700),
+              child: ExpansionTile(
+                initiallyExpanded: idx == 0,
+                title: Text(
+                  cat.name,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
                   ),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: availableNiches.map((mn) {
-                          final isSelected = _selectedInterestIds.contains(mn.id);
-                          return _buildNicheKeyTile(
-                            label: mn.name,
-                            isSelected: isSelected,
-                            onTap: () {
-                              setState(() {
-                                if (isSelected) {
-                                  _selectedInterestIds.remove(mn.id);
-                                } else {
-                                  if (_selectedInterestIds.length < 5) {
-                                    _selectedInterestIds.add(mn.id);
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Maximum 5 interests allowed.')),
-                                    );
-                                  }
-                                }
-                              });
-                            },
-                            isDark: isDark,
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ],
                 ),
+                childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: cat.microNiches.map((mn) {
+                      final isSelected = _selectedInterestIds.contains(mn.id);
+                      final isOwnPrimary = _primaryMicroNicheId == mn.id;
+
+                      if (isOwnPrimary) {
+                        return Tooltip(
+                          message: 'Cannot select your own primary supply product as a buy interest',
+                          child: Chip(
+                            label: Text('${mn.name} (Your Product)'),
+                            backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                            labelStyle: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                            ),
+                          ),
+                        );
+                      }
+
+                      return FilterChip(
+                        selected: isSelected,
+                        showCheckmark: false,
+                        label: Text(mn.name),
+                        labelStyle: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                          color: isSelected
+                              ? Colors.white
+                              : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155)),
+                        ),
+                        selectedColor: const Color(0xFF0058FF),
+                        backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                        onSelected: (sel) {
+                          HapticFeedback.selectionClick();
+                          setState(() {
+                            if (sel) {
+                              _selectedInterestIds.add(mn.id);
+                            } else {
+                              _selectedInterestIds.remove(mn.id);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ],
               ),
             );
           },

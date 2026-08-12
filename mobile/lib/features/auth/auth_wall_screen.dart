@@ -97,38 +97,30 @@ class _AuthWallScreenState extends ConsumerState<AuthWallScreen> {
             children: [
               const SizedBox(height: 12),
 
-              // Top Brand Header
+              // Top Brand Header with Official Logo Asset
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0058FF),
-                          borderRadius: BorderRadius.circular(11),
-                        ),
-                        child: const Center(
-                          child: HugeIcon(
-                            icon: HugeIcons.strokeRoundedFlash,
-                            color: Colors.white,
-                            size: 20,
+                  Image.asset(
+                    isDark
+                        ? 'assets/images/bizsquare_full_white.png'
+                        : 'assets/images/bizsquare_full_black.png',
+                    height: 34,
+                    errorBuilder: (_, __, ___) => Row(
+                      children: [
+                        Image.asset('assets/images/bizsquare_icon.png', height: 32),
+                        const SizedBox(width: 10),
+                        Text(
+                          'BizSquare',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+                            letterSpacing: -0.5,
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'BizSquare',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

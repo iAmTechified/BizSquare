@@ -6,6 +6,7 @@ import { AdminShell } from './components/shell/AdminShell';
 import { AdminRoute } from './components/shell/Sidebar';
 import { OverviewPage } from './pages/OverviewPage';
 import { UserManagementPage } from './pages/UserManagementPage';
+import { UserDetailPage } from './pages/UserDetailPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { SystemHealthPage } from './pages/SystemHealthPage';
 import { AuditLogPage } from './pages/AuditLogPage';
@@ -19,12 +20,18 @@ import './index.css';
 function MainAppContent() {
   const { status, isLoading, verifySession, hasPermission } = useAdminAuth();
   const [currentRoute, setCurrentRoute] = useState<AdminRoute>('overview');
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   // Enforce Dark Mode on mount
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', 'dark');
     document.documentElement.style.colorScheme = 'dark';
   }, []);
+
+  const handleNavigate = (route: AdminRoute) => {
+    setSelectedUserId(null);
+    setCurrentRoute(route);
+  };
 
   // Show full page loading skeleton during initialization
   if (status === 'INITIALIZING' || (isLoading && status !== 'AUTHENTICATED')) {
@@ -56,7 +63,7 @@ function MainAppContent() {
   // Route metadata mapping
   const routeMeta: Record<AdminRoute, { title: string; breadcrumb: string; permission?: string }> = {
     overview: { title: 'Admin Overview', breadcrumb: 'Overview' },
-    users: { title: 'User Registry & Account Management', breadcrumb: 'Users', permission: 'users.view' },
+    users: { title: selectedUserId ? 'User Profile Inspection' : 'Users', breadcrumb: 'Users', permission: 'users.view' },
     notifications: { title: 'Notification Composer & Broadcasts', breadcrumb: 'Notifications' },
     system: { title: 'System Health & Monitoring', breadcrumb: 'System Health', permission: 'system.view' },
     audit: { title: 'Administrative Audit Log', breadcrumb: 'Audit Log', permission: 'audit.view' },
@@ -69,35 +76,49 @@ function MainAppContent() {
     return (
       <AdminShell
         currentRoute={currentRoute}
-        onNavigate={setCurrentRoute}
+        onNavigate={handleNavigate}
         title="Access Denied"
         breadcrumbItems={[{ label: 'Access Denied' }]}
       >
         <AccessDeniedPage
           requiredPermission={currentMeta.permission}
-          onGoHome={() => setCurrentRoute('overview')}
+          onGoHome={() => handleNavigate('overview')}
         />
       </AdminShell>
     );
   }
 
   const breadcrumbs: BreadcrumbItem[] = [
-    { label: 'Overview', onClick: currentRoute !== 'overview' ? () => setCurrentRoute('overview') : undefined },
+    { label: 'Overview', onClick: currentRoute !== 'overview' || selectedUserId ? () => handleNavigate('overview') : undefined },
   ];
 
   if (currentRoute !== 'overview') {
-    breadcrumbs.push({ label: currentMeta.breadcrumb });
+    if (selectedUserId) {
+      breadcrumbs.push({ label: 'Users', onClick: () => setSelectedUserId(null) });
+      breadcrumbs.push({ label: 'User Detail' });
+    } else {
+      breadcrumbs.push({ label: currentMeta.breadcrumb });
+    }
   }
 
   return (
     <AdminShell
       currentRoute={currentRoute}
-      onNavigate={setCurrentRoute}
+      onNavigate={handleNavigate}
       title={currentMeta.title}
       breadcrumbItems={breadcrumbs}
     >
-      {currentRoute === 'overview' && <OverviewPage onNavigate={setCurrentRoute} />}
-      {currentRoute === 'users' && <UserManagementPage />}
+      {currentRoute === 'overview' && <OverviewPage onNavigate={handleNavigate} />}
+      {currentRoute === 'users' && !selectedUserId && (
+        <UserManagementPage onSelectUser={(id) => setSelectedUserId(id)} />
+      )}
+      {currentRoute === 'users' && selectedUserId && (
+        <UserDetailPage
+          userId={selectedUserId}
+          onNavigate={handleNavigate}
+          onBack={() => setSelectedUserId(null)}
+        />
+      )}
       {currentRoute === 'notifications' && <NotificationsPage />}
       {currentRoute === 'system' && <SystemHealthPage />}
       {currentRoute === 'audit' && <AuditLogPage />}

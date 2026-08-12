@@ -54,7 +54,7 @@ class _AwardOnboardingScreenState extends ConsumerState<AwardOnboardingScreen>
       );
     } else {
       ref.read(userStateProvider.notifier).setOnboarded(true);
-      context.go('/register-steps');
+      context.go('/auth-wall');
     }
   }
 

@@ -77,7 +77,7 @@ class ApiService {
   }) async {
     try {
       final response = await _dio.post(
-        '/auth/verify-code',
+        '/auth/verify-and-register',
         data: {
           'code': code,
           'phoneNumber': phoneNumber,

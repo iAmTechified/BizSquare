@@ -160,16 +160,44 @@ export interface AdminUserListItem {
   id: string;
   phone_number: string;
   full_name: string;
+  business_name: string | null;
+  username: string | null;
+  avatar_id: number;
   akawo_points: number;
   access_level: string;
   is_active: boolean;
+  onboarding_completed: boolean;
+  verification_status: string;
   last_login: string | null;
   created_at: string;
+  primary_offer?: string | null;
+  secondary_offers_count?: number;
+  spotlight_status?: string | null;
+  contact_sync_status?: string | null;
 }
 
 export interface UserDetailsResponse {
   success: boolean;
   user: AdminUserListItem;
+  offers: {
+    primary: { micro_niche_name: string; category_name?: string; is_primary?: boolean } | null;
+    secondary: Array<{ micro_niche_id: string; micro_niche_name: string; category_name?: string }>;
+  };
+  interests: {
+    baseline: Array<{ interest_id: string; interest_name: string; slug: string }>;
+    dynamic: Array<{ interest_id: string; interest_name: string; score: number; recency_decay_factor: number; updated_at: string }>;
+  };
+  contactGain: {
+    contacts_count: number;
+    last_sync_status: string;
+    pending_sync_count: number;
+    failed_sync_count: number;
+  };
+  spotlight: {
+    active_campaign: { id: string; business_name: string; title: string; status: string; submission_status?: string; participants_count: number } | null;
+    campaigns_count: number;
+    submission_status: string;
+  };
   points_history: Array<{
     id: string;
     points_awarded: number;
@@ -177,9 +205,17 @@ export interface UserDetailsResponse {
     verified_by_bot: boolean;
     created_at: string;
   }>;
-  metrics: {
-    contacts_count: number;
-  };
+}
+
+export interface UserActivityItem {
+  id: string;
+  action: string;
+  resource_type: string;
+  resource_id: string;
+  metadata: Record<string, any>;
+  result: string;
+  created_at: string;
+  event_source: string;
 }
 
 export const adminAuthApi = {
@@ -221,18 +257,33 @@ export const adminAuthApi = {
   },
 
   /**
-   * Fetches real user registry from PostgreSQL database
+   * Fetches real user registry from PostgreSQL database with server-backed search, filters, sorting, and pagination
    */
-  async getUsersRegistry(params: { search?: string; status?: string; limit?: number; offset?: number } = {}): Promise<{
+  async getUsersRegistry(params: {
+    search?: string;
+    status?: string;
+    setup_status?: string;
+    spotlight_status?: string;
+    contact_sync_status?: string;
+    sort?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<{
     success: boolean;
     users: AdminUserListItem[];
     total_count: number;
     limit: number;
     offset: number;
+    sort: string;
+    filters: Record<string, string>;
   }> {
     const query = new URLSearchParams();
     if (params.search) query.append('search', params.search);
     if (params.status) query.append('status', params.status);
+    if (params.setup_status) query.append('setup_status', params.setup_status);
+    if (params.spotlight_status) query.append('spotlight_status', params.spotlight_status);
+    if (params.contact_sync_status) query.append('contact_sync_status', params.contact_sync_status);
+    if (params.sort) query.append('sort', params.sort);
     if (params.limit) query.append('limit', params.limit.toString());
     if (params.offset) query.append('offset', params.offset.toString());
 
@@ -244,6 +295,13 @@ export const adminAuthApi = {
    */
   async getUserDetails(userId: string): Promise<UserDetailsResponse> {
     return adminFetch<UserDetailsResponse>(`/admin/users/${userId}`);
+  },
+
+  /**
+   * Fetches real activity timeline for a user
+   */
+  async getUserActivity(userId: string): Promise<{ success: boolean; activity: UserActivityItem[] }> {
+    return adminFetch<{ success: boolean; activity: UserActivityItem[] }>(`/admin/users/${userId}/activity`);
   },
 
   /**

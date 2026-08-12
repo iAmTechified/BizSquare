@@ -10,12 +10,10 @@ final apiServiceProvider = Provider<ApiService>((ref) {
 class ApiService {
   late final Dio _dio;
 
-  // Android emulator connects to host at 10.0.2.2; desktop/web connects to localhost
+  static const String liveProductionUrl = 'https://bizsquare-backend.onrender.com/api/v1';
+
   static String get defaultBaseUrl {
-    if (!kIsWeb && Platform.isAndroid) {
-      return 'http://10.0.2.2:8080/api/v1';
-    }
-    return 'http://localhost:8080/api/v1';
+    return liveProductionUrl;
   }
 
   ApiService({String? baseUrl}) {

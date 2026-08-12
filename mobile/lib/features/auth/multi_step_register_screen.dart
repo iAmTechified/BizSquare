@@ -502,7 +502,7 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Business Profile',
+          'Create Your Business Identity',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 26,
             fontWeight: FontWeight.w800,
@@ -512,7 +512,7 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
         ),
         const SizedBox(height: 6),
         Text(
-          'Choose your companion avatar and enter your WhatsApp business details.',
+          'Pick your business avatar and enter your WhatsApp contact details.',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 14,
             color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),

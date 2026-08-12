@@ -172,30 +172,30 @@ class _AwardOnboardingScreenState extends ConsumerState<AwardOnboardingScreen>
                     children: [
                       _buildSlide(
                         illustration: _Slide1Illustration(loopCtrl: _loopCtrl, isDark: isDark),
-                        badge: 'COMMUNITY NETWORK',
+                        badge: 'DIRECT SALES CHANNEL',
                         badgeColor: AppTheme.primaryBlue,
-                        title: 'Verified Business\nCommunity',
+                        title: 'Turn WhatsApp Into\nYour Sales Engine',
                         desc:
-                            'Join an exclusive circle of verified business owners, retailers, and suppliers across Nigeria.',
+                            'Connect directly with verified business owners and active buyers looking for the exact products you sell.',
                         isDark: isDark,
                       ),
                       _buildSlide(
                         illustration: _Slide2Illustration(loopCtrl: _loopCtrl, isDark: isDark),
-                        badge: 'CONTACT GAIN',
+                        badge: 'MORE BUYERS WEEKLY',
                         badgeColor: const Color(0xFF10B981),
                         badgeTextColor: isDark ? const Color(0xFF10B981) : const Color(0xFF047857),
-                        title: 'Gain Verified\nContacts Weekly',
+                        title: 'Get Introduced To\nNew Buyers Weekly',
                         desc:
-                            'Receive direct WhatsApp contact matches tailored specifically to your product offerings and supply needs.',
+                            'Receive fresh WhatsApp contacts of buyers and reliable suppliers tailored specifically to grow your daily sales.',
                         isDark: isDark,
                       ),
                       _buildSlide(
                         illustration: _Slide3Illustration(loopCtrl: _loopCtrl, isDark: isDark),
-                        badge: 'SPOTLIGHT & VISIBILITY',
+                        badge: 'STATUS SPOTLIGHT',
                         badgeColor: const Color(0xFF0058FF),
-                        title: 'Spotlight &\nBusiness Reach',
+                        title: 'Multiply Your\nProduct Reach',
                         desc:
-                            'Broadcast your special offers across partner WhatsApp networks and manage your customer contacts with ease.',
+                            'Get your best deals featured on hundreds of WhatsApp Statuses across your business community with one tap.',
                         isDark: isDark,
                       ),
                     ],

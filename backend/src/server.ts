@@ -19,6 +19,7 @@ import matchingRoutes from './routes/matching.routes';
 import spotlightRoutes from './routes/spotlight.routes';
 import notificationsRoutes from './routes/notifications.routes';
 import contactsRoutes from './routes/contacts.routes';
+import retentionRoutes from './routes/retention.routes';
 import { MatchingEngineService } from './services/matching/matching_engine.service';
 import { DemandService } from './services/demand.service';
 import { InterestStateService } from './services/interest_state.service';
@@ -49,6 +50,7 @@ app.use('/api/v1/crm', crmRoutes);
 app.use('/api/v1/taxonomy', taxonomyRoutes);
 app.use('/api/v1/demand', demandRoutes);
 app.use('/api/v1/interest', interestRoutes);
+app.use('/api/v1/retention', retentionRoutes);
 
 // Health Check
 app.get('/health', (req, res) => {

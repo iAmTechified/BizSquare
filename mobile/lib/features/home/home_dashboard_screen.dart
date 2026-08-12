@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/providers/home_state_provider.dart';
 import '../../core/providers/notifications_state_provider.dart';
 import '../../core/providers/permission_state_provider.dart';
@@ -11,6 +12,8 @@ import 'widgets/recent_contacts_carousel.dart';
 import 'widgets/spotlight_home_card.dart';
 import 'widgets/recent_activity_section.dart';
 import 'widgets/home_skeletons.dart';
+import 'package:hugeicons/hugeicons.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/widgets/contact_gain_widget_card.dart';
 
 class HomeDashboardScreen extends ConsumerWidget {
@@ -19,10 +22,9 @@ class HomeDashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final homeState = ref.watch(homeStateProvider);
-    // notificationsStateProvider is the single source of truth for
-    // unread count (badge) and recent activity preview on Home.
     final notifState = ref.watch(notificationsStateProvider);
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     if (homeState.isLoading && homeState.contactGain == null && homeState.spotlight == null) {
       return Scaffold(
@@ -83,6 +85,70 @@ class HomeDashboardScreen extends ConsumerWidget {
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 20, vertical: 6),
                   child: ContactGainWidgetCard(size: WidgetSize.medium),
+                ),
+
+                // Daily Interactive Wall Entry Banner (Sections 1 & 2)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  child: InkWell(
+                    onTap: () => context.push('/daily-wall'),
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryBlue.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: AppTheme.primaryBlue.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryBlue.withValues(alpha: 0.15),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const HugeIcon(
+                              icon: HugeIcons.strokeRoundedSparkles,
+                              color: AppTheme.primaryBlue,
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Daily Network Pulse',
+                                  style: AppTheme.satoshi(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Quick choices to sharpen your Contact Gain matching',
+                                  style: AppTheme.satoshi(
+                                    fontSize: 11,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const HugeIcon(
+                            icon: HugeIcons.strokeRoundedArrowRight01,
+                            color: AppTheme.primaryBlue,
+                            size: 18,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
 
                 // Context-Aware Vertical Layout: If Spotlight is User's Turn, prioritize Spotlight

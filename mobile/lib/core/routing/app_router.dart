@@ -9,7 +9,7 @@ import '../../features/auth/auth_wall_screen.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/multi_step_register_screen.dart';
 import '../../features/onboarding/permissions_wall_screen.dart';
-import '../../features/interest_graph/daily_interactive_wall_screen.dart';
+import '../../features/retention/daily_interactive_wall_screen.dart';
 import '../../features/notifications/notifications_screen.dart';
 import '../../features/spotlight/spotlight_screen.dart';
 import '../../features/spotlight/spotlight_history_screen.dart';

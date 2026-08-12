@@ -11,6 +11,7 @@ import 'widgets/recent_contacts_carousel.dart';
 import 'widgets/spotlight_home_card.dart';
 import 'widgets/recent_activity_section.dart';
 import 'widgets/home_skeletons.dart';
+import '../../core/widgets/contact_gain_widget_card.dart';
 
 class HomeDashboardScreen extends ConsumerWidget {
   const HomeDashboardScreen({super.key});
@@ -76,6 +77,12 @@ class HomeDashboardScreen extends ConsumerWidget {
                   interestsSet: homeState.interestsSet,
                   contactsPermissionGranted: homeState.contactsPermissionGranted,
                   notificationsPermissionGranted: homeState.notificationsPermissionGranted,
+                ),
+
+                // Contact Gain Dynamic OS/App Widget Representation
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                  child: ContactGainWidgetCard(size: WidgetSize.medium),
                 ),
 
                 // Context-Aware Vertical Layout: If Spotlight is User's Turn, prioritize Spotlight

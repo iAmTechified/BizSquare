@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hugeicons/hugeicons.dart';
+import '../providers/contact_gain_widget_provider.dart';
 import '../services/widget_service.dart';
 import '../theme/app_theme.dart';
-import 'burning_fire_streak.dart';
+import 'contact_gain_widget_card.dart';
 
 class AddWidgetBottomSheet extends ConsumerStatefulWidget {
   const AddWidgetBottomSheet({super.key});
@@ -14,6 +16,7 @@ class AddWidgetBottomSheet extends ConsumerStatefulWidget {
 class _AddWidgetBottomSheetState extends ConsumerState<AddWidgetBottomSheet> {
   bool _isPinning = false;
   bool _pinnedSuccessfully = false;
+  WidgetSize _selectedSize = WidgetSize.medium;
 
   Future<void> _handlePinWidget() async {
     setState(() => _isPinning = true);
@@ -29,7 +32,7 @@ class _AddWidgetBottomSheetState extends ConsumerState<AddWidgetBottomSheet> {
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Widget request sent! Check your home screen.'),
+            content: Text('Widget added to home screen!'),
             backgroundColor: Color(0xFF10B981),
           ),
         );
@@ -39,7 +42,7 @@ class _AddWidgetBottomSheetState extends ConsumerState<AddWidgetBottomSheet> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('You can also long-press your home screen and select BizSquare.'),
+            content: Text('Long-press your phone home screen and select BizSquare to place the widget.'),
           ),
         );
       }
@@ -50,6 +53,7 @@ class _AddWidgetBottomSheetState extends ConsumerState<AddWidgetBottomSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final liveWidgetData = ref.watch(contactGainWidgetProvider);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
@@ -74,14 +78,18 @@ class _AddWidgetBottomSheetState extends ConsumerState<AddWidgetBottomSheet> {
           ),
           const SizedBox(height: 20),
 
-          // Header
+          // Title
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const BurningFireStreak(streakDays: 7, size: 24, compact: true),
+              const HugeIcon(
+                icon: HugeIcons.strokeRoundedGrid,
+                color: AppTheme.primaryBlue,
+                size: 22,
+              ),
               const SizedBox(width: 8),
               Text(
-                'Add BizSquare Widget',
+                'Add Contact Gain Widget',
                 style: AppTheme.satoshi(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
@@ -92,7 +100,7 @@ class _AddWidgetBottomSheetState extends ConsumerState<AddWidgetBottomSheet> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Keep your trade streak hot and see verified WhatsApp matches directly on your home screen!',
+            'Keep your Contact Gain cycle status and new network batches visible directly on your home screen.',
             textAlign: TextAlign.center,
             style: AppTheme.satoshi(
               fontSize: 13,
@@ -100,78 +108,37 @@ class _AddWidgetBottomSheetState extends ConsumerState<AddWidgetBottomSheet> {
               color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
             ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 18),
 
-          // Live Compact Widget Preview (Duolingo Style with Burning Flame)
+          // Size Toggle Pill (Small vs Medium)
           Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF080D1A) : const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: AppTheme.primaryBlue.withValues(alpha: 0.35),
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.primaryBlue.withValues(alpha: 0.12),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
+              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildSizeOption(WidgetSize.medium, 'Medium (2x1)', isDark),
+                _buildSizeOption(WidgetSize.small, 'Small (1x1)', isDark),
               ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Image.asset(
-                      'assets/images/bizsquare_icon.png',
-                      width: 22,
-                      height: 22,
-                      errorBuilder: (_, __, ___) => const Icon(
-                        Icons.widgets_rounded,
-                        color: AppTheme.primaryBlue,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'BizSquare',
-                      style: AppTheme.satoshi(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.primaryBlue,
-                      ),
-                    ),
-                    const Spacer(),
-                    const BurningFireStreak(streakDays: 7, size: 18, compact: true),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  '3 New Matches Waiting',
-                  style: AppTheme.satoshi(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.3,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Score: 98% · Tap to Connect with Verified Buyers',
-                  style: AppTheme.satoshi(
-                    fontSize: 11,
-                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                  ),
-                ),
-              ],
+          ),
+          const SizedBox(height: 20),
+
+          // Live Interactive Widget Preview Card
+          SizedBox(
+            width: _selectedSize == WidgetSize.small ? 180 : double.infinity,
+            child: ContactGainWidgetCard(
+              size: _selectedSize,
+              overrideData: liveWidgetData,
+              onTap: () {}, // Preview only inside modal
             ),
           ),
           const SizedBox(height: 24),
 
-          // Action Buttons
+          // Action Button
           SizedBox(
             width: double.infinity,
             height: 52,
@@ -209,6 +176,40 @@ class _AddWidgetBottomSheetState extends ConsumerState<AddWidgetBottomSheet> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSizeOption(WidgetSize size, String label, bool isDark) {
+    final selected = _selectedSize == size;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedSize = size),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? (isDark ? const Color(0xFF334155) : Colors.white)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(9),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 4,
+                  ),
+                ]
+              : [],
+        ),
+        child: Text(
+          label,
+          style: AppTheme.satoshi(
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+            color: selected
+                ? (isDark ? Colors.white : AppTheme.primaryBlue)
+                : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+          ),
+        ),
       ),
     );
   }

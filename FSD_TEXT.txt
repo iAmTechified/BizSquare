@@ -1,0 +1,140 @@
+Functional Specification Document (FSD)
+WhatsApp-first Business Growth Platform
+Version 1.0
+1. System Overview
+The platform consists of a Flutter mobile application, backend services, and a web-based admin dashboard. The mobile app focuses on networking, CRM, visibility, and business management while the admin dashboard manages operations and analytics.
+2. Core Modules
+• Authentication
+• Business Profiles
+• Smart Match Engine
+• Contact Management
+• Pocket CRM
+• Visibility Management
+• Status Akawo
+• WhatsApp Tools
+• Business Toolkit
+• Analytics
+• Admin Dashboard
+3. Authentication
+Functions:
+- Register/Login
+- OTP Verification
+- Password Reset
+- Session Management
+- Logout
+Validation:
+- Unique phone number
+- Valid OTP
+- Required profile information
+4. Business Profiles
+Users can create one or more businesses.
+Fields include business name, category, description, location, contact details, social links, catalog and business status.
+5. Smart Match Engine
+Inputs:
+- Interests
+- Business Category
+- Existing Contacts
+- Match History
+Rules:
+- Reciprocal matching
+- Prevent competitor matching
+- Apply contact limits
+- Fair distribution
+- Fallback matching
+- Match refresh cycle
+6. Contact Management
+Functions:
+- Auto Sync
+- Manual Sync
+- Cleanup
+- Labels
+- Groups
+- Favorites
+- Archive
+- Merge Duplicates
+- Contact Notes
+- Lead Grade
+- Relationship Strength
+- Interaction Score
+- Contact Analytics
+- Contact Audit
+7. Pocket CRM
+Lead creation
+Customer management
+Sales pipeline
+Tasks
+Follow-up reminders
+Customer timeline
+Notes
+Opportunity tracking
+8. Visibility Management
+Visibility score
+Campaign planner
+Visibility calendar
+Reach analytics
+Recommendations
+Performance insights
+9. Status Akawo
+Automatic spotlight scheduling
+Admin override
+Participation tracking
+Interest-aware assignment
+Campaign history
+Notifications
+10. WhatsApp Features
+Status scheduler
+Broadcast scheduler
+Catalog manager
+Quick replies
+QR generator
+Click-to-chat links
+11. Business Toolkit
+Invoice generator
+Receipt generator
+Quotation generator
+Payment links
+Payment tracking
+12. Admin Dashboard
+Manage users
+Manage businesses
+Manage spotlight
+Override rotations
+Verification
+Reports
+Analytics
+Ads
+Categories
+Affiliates
+Delivery partners
+13. Events
+User Registered
+Business Created
+Match Generated
+Contacts Synced
+Spotlight Assigned
+Status Shared
+Lead Created
+Invoice Generated
+Payment Completed
+14. Permissions
+User
+Business Owner
+Moderator
+Administrator
+Super Administrator
+15. Error Handling
+Invalid OTP
+Sync failure
+Duplicate contacts
+Network failure
+Permission denied
+Payment failure
+Spotlight conflict
+16. Non-functional Requirements
+Performance: <2 second average response
+Security: encrypted communication
+Availability: 99.9%
+Scalable backend
+Audit logging
+17. Acceptance Criteria
+Users can successfully onboard, receive intelligent matches, manage contacts, participate in spotlight campaigns, manage customers, create invoices, and access analytics. Admins can configure, monitor and moderate the platform.

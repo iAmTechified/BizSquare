@@ -1,0 +1,43 @@
+Product Requirements Document (Draft)
+Product Vision
+Build a mobile platform that intelligently connects businesses and professionals through reciprocal, high-quality WhatsApp networking, replacing manual Contact Gain with fair, dynamic, and automated relationship management.
+Problem Statement
+Current Contact Gain methods create spam, competitor overlap, poor lead quality, stale contacts, and no intelligent matching.
+Solution
+A mobile app that registers users, understands interests, intelligently matches people, dynamically syncs contacts, rotates promotional campaigns (Status Akawo), and maintains a healthy networking ecosystem.
+Core Principles
+• Mutual reciprocity
+• No competitor matching
+• Fair exposure
+• Dynamic contacts
+• Low friction
+• Privacy and trust
+Target Users
+Small business owners, freelancers, students, professionals, creators, cooperatives, and community groups.
+Core Features
+• Registration & onboarding
+• Business profiles
+• Intelligent matchmaking
+• Contact sync & cleanup
+• Status Akawo rotation
+• Search & discovery
+• Notifications
+• Analytics
+• Admin dashboard
+User Journey
+Register → Complete profile → Select interests → Receive curated matches → Sync contacts → Participate in Status Akawo → Build relationships → Measure results.
+Matching Rules
+1. Reciprocal matches.
+2. Never match competitors.
+3. Contact cap per batch.
+4. Fair load balancing.
+5. Fallback matching when interests are unavailable.
+6. Remove inactive users from future syncs.
+Modules
+Authentication, Profiles, Matching Engine, Contact Engine, Status Akawo, Discovery, Reputation, Notifications, Analytics, Admin.
+SOPs
+Daily: Generate matches, rotate Akawo, process reports.
+Weekly: Refresh contacts and clean inactive users.
+Monthly: Review analytics, rebalance categories, audit abuse.
+Success Metrics
+Activation, retained users, accepted matches, contact quality, Akawo participation, business enquiries, user retention.

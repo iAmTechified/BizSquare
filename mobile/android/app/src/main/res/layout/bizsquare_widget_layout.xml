@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="@drawable/widget_background">
+
+    <!-- Top Row: Logo, Title & Burning Fire Streak Badge -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <ImageView
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:src="@drawable/bizsquare_icon"
+            android:contentDescription="BizSquare Logo" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:text="BizSquare"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textColor="#0058FF" />
+
+        <!-- Burning Fire Flame Streak Pill -->
+        <TextView
+            android:id="@+id/widget_streak_pill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🔥 7-DAY STREAK"
+            android:textSize="9sp"
+            android:textStyle="bold"
+            android:textColor="#FF00A6"
+            android:background="#FFF0F8"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="2dp" />
+    </LinearLayout>
+
+    <!-- Main Content Row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="4dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widget_headline"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="3 New Matches Waiting 🔥"
+                android:textSize="13.5sp"
+                android:textStyle="bold"
+                android:textColor="#0B132B" />
+
+            <TextView
+                android:id="@+id/widget_subtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:text="Score: 98% · Tap to Connect"
+                android:textSize="10.5sp"
+                android:textColor="#64748B"
+                android:maxLines="1" />
+        </LinearLayout>
+
+        <!-- Quick Launch Action Button -->
+        <TextView
+            android:id="@+id/widget_cta_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Open →"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:background="#0058FF"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="5dp"
+            android:layout_marginStart="8dp" />
+    </LinearLayout>
+
+</LinearLayout>

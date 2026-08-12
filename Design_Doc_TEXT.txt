@@ -1,0 +1,85 @@
+BizSquare Brand & Design Style Guide
+Version 1.0
+Brand Identity
+Brand Name: BizSquare
+Tagline (working): Where Businesses Grow Together.
+Brand Personality: Modern, confident, approachable, optimistic, community-driven, trustworthy.
+Brand Positioning
+BizSquare is a WhatsApp-first Business Growth Platform that helps SMEs grow through smart networking, visibility management, contact intelligence, lightweight CRM, and business tools.
+Design Principles
+• Simplicity over clutter
+• Human-first experiences
+• Business-friendly, not corporate
+• Clean and consistent layouts
+• Fast, intuitive interactions
+• Trust through clarity
+• Focus on growth and visibility
+Visual Style
+Design Language:
+- Soft Minimalism
+- Rounded corners (12–20px)
+- Large cards
+- Spacious layouts
+- Minimal shadows
+- Subtle micro-animations
+- Consistent iconography
+Color Palette
+Role
+Color
+Hex
+Primary
+Deep Indigo
+#4338CA
+Secondary
+Emerald
+#10B981
+Accent
+Amber
+#F59E0B
+Background
+Warm White
+#FAFAFA
+Surface
+White
+#FFFFFF
+Text Primary
+Dark Gray
+#111827
+Text Secondary
+Gray
+#6B7280
+Success
+Green
+#22C55E
+Warning
+Orange
+#F59E0B
+Error
+Red
+#EF4444
+Typography
+Primary: Inter
+Alternative: Manrope
+Headings: SemiBold/Bold
+Body: Regular
+Use generous spacing and avoid dense text.
+Icons & Illustrations
+Icons: Lucide-style rounded outline icons.
+Illustrations: Flat vector illustrations featuring African entrepreneurs, online sellers, customers, logistics and collaboration. Avoid overly cartoonish artwork.
+UI Components
+Buttons: Rounded, medium height, clear hierarchy.
+Cards: Elevated with soft shadows.
+Forms: Clean inputs with descriptive labels.
+Charts: Simple, business-focused analytics.
+Navigation: Bottom navigation (mobile), sidebar (web admin).
+Experience
+The app should feel calm, premium, encouraging and productive. Every screen should reinforce business growth, trust and momentum rather than complexity.
+Brand Voice
+Friendly, clear and encouraging.
+Examples:
+✓ 'Your campaign is ready.'
+✓ 'You gained 3 new business contacts today.'
+✓ 'Your visibility increased this week.'
+Avoid robotic or overly technical language.
+Logo Direction
+Modern wordmark emphasizing 'Square' as a place where businesses meet and grow. Explore subtle square/grid motifs representing community, marketplace and opportunity. Avoid chat bubbles or WhatsApp-inspired logos.

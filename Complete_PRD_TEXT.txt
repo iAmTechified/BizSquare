@@ -1,0 +1,35 @@
+Product Requirements Document (PRD)
+WhatsApp-first Business Growth Platform
+Version 1.0
+Executive Summary
+A platform for intelligent networking, dynamic contact management, visibility management and lightweight CRM built around WhatsApp.
+Vision
+Help small businesses acquire customers, manage relationships and grow from one application.
+Problem Statement
+Manual Contact Gain creates spam, poor leads, competitor overlap, stale contacts and no measurable growth.
+Goals
+Increase quality networking, automate contacts, improve visibility, provide business tools and measurable growth.
+Target Users
+Small businesses, freelancers, students, vendors, creators and communities.
+User Journey
+Register → Profile → Business → Interests → Smart Matches → Sync Contacts → Spotlight → CRM → Campaigns → Analytics.
+Core Modules
+Authentication, Business Profiles, Smart Networking, Contact Management, Pocket CRM, Visibility Management, Status Akawo, WhatsApp Tools, Business Toolkit, Growth, Trust Center, Delivery, Analytics and Admin Dashboard.
+Key Contact Features
+Auto sync, cleanup, labels, groups, stars, archive, notes, lead grading, relationship strength, interaction score, analytics, audit trail.
+WhatsApp Features
+Status scheduling, broadcast scheduling, catalog manager, click-to-chat, QR codes, quick replies.
+Business Features
+Invoices, receipts, quotations, payment links, campaigns, UGC, affiliates, ads, content testing.
+Admin Dashboard
+Manage users, spotlight rotation, overrides, matching, reports, verification, ads, analytics and configuration.
+Business Rules
+Reciprocal matching, no competitor matching, fair distribution, contact caps, fallback logic, dynamic contacts, rotating spotlight.
+Functional Requirements
+Users manage businesses, receive matches, sync contacts, manage CRM, schedule campaigns; admins manage platform.
+Non-functional Requirements
+Secure, scalable, reliable, privacy-first and responsive.
+MVP
+Profiles, matching, contacts, CRM basics, spotlight, analytics, admin dashboard, invoices, catalog, payment links.
+Future
+AI, automation, chatbot, POS, loyalty.

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,31 +48,31 @@ class ApiService {
   }) async {
     try {
       final response = await _dio.post(
-        '/auth/verify-and-register',
+        '/auth/verify-code',
         data: {
-          'code': code.trim().toUpperCase(),
-          'phoneNumber': phoneNumber.trim(),
-          'businessName': businessName.trim(),
-          'fullName': fullName?.trim() ?? businessName.trim(),
+          'code': code,
+          'phoneNumber': phoneNumber,
+          'businessName': businessName,
+          'fullName': fullName ?? businessName,
           'avatarId': avatarId,
           'microNicheIds': microNicheIds,
           'primaryMicroNicheId': primaryMicroNicheId,
         },
       );
-
-      final data = response.data as Map<String, dynamic>;
-      if (data['token'] != null) {
-        setAuthToken(data['token'] as String);
-      }
-      return data;
+      return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
-      final message = e.response?.data?['error'] ?? e.message ?? 'Verification failed';
-      final code = e.response?.data?['code'] ?? 'UNKNOWN_ERROR';
-      throw ApiException(message: message.toString(), code: code.toString());
+      final data = e.response?.data;
+      final msg = data is Map && data['message'] != null
+          ? data['message'] as String
+          : e.message ?? 'Verification failed';
+      final errCode = data is Map && data['code'] != null
+          ? data['code'] as String
+          : 'VERIFICATION_ERROR';
+      throw ApiException(message: msg, code: errCode, statusCode: e.response?.statusCode);
     }
   }
 
-  /// Steps 4+5: Complete onboarding with Security PIN and Baseline Demand
+  /// Step 5: Finalize user credentials (PIN, custom username, baseline interests)
   Future<Map<String, dynamic>> completeOnboarding({
     required String username,
     required String pin,
@@ -83,50 +82,54 @@ class ApiService {
       final response = await _dio.post(
         '/auth/complete-onboarding',
         data: {
-          'username': username.trim(),
-          'pin': pin.trim(),
+          'username': username,
+          'pin': pin,
           'interestMicroNicheIds': interestMicroNicheIds,
         },
       );
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
-      final message = e.response?.data?['error'] ?? e.message ?? 'Failed to complete onboarding';
-      final code = e.response?.data?['code'] ?? 'UNKNOWN_ERROR';
-      throw ApiException(message: message.toString(), code: code.toString());
+      final data = e.response?.data;
+      final msg = data is Map && data['message'] != null
+          ? data['message'] as String
+          : e.message ?? 'Onboarding failed';
+      final errCode = data is Map && data['code'] != null
+          ? data['code'] as String
+          : 'ONBOARDING_ERROR';
+      throw ApiException(message: msg, code: errCode, statusCode: e.response?.statusCode);
     }
   }
 
-  /// Login with phone number and PIN
+  /// Direct Login with phone and PIN
   Future<Map<String, dynamic>> login({
     required String phoneNumber,
-    String? pin,
+    required String pin,
   }) async {
     try {
       final response = await _dio.post(
         '/auth/login',
         data: {
-          'phoneNumber': phoneNumber.trim(),
-          if (pin != null && pin.isNotEmpty) 'pin': pin.trim(),
+          'phoneNumber': phoneNumber,
+          'pin': pin,
         },
       );
-      final data = response.data as Map<String, dynamic>;
-      if (data['token'] != null) {
-        setAuthToken(data['token'] as String);
-      }
-      return data;
+      return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
-      final message = e.response?.data?['error'] ?? e.message ?? 'Login failed';
-      final code = e.response?.data?['code'] ?? 'UNKNOWN_ERROR';
-      throw ApiException(message: message.toString(), code: code.toString());
+      final data = e.response?.data;
+      final msg = data is Map && data['message'] != null
+          ? data['message'] as String
+          : e.message ?? 'Login failed';
+      final errCode = data is Map && data['code'] != null
+          ? data['code'] as String
+          : 'LOGIN_ERROR';
+      throw ApiException(message: msg, code: errCode, statusCode: e.response?.statusCode);
     }
   }
 
-  /// Real-time username availability check
+  /// Check if custom username is available
   Future<bool> checkUsernameAvailable(String username) async {
-    final clean = username.startsWith('@') ? username.substring(1) : username;
-    if (clean.length < 3) return false;
-
     try {
+      final clean = username.trim().replaceAll('@', '');
       final response = await _dio.get('/auth/username-available/$clean');
       return response.data['available'] as bool? ?? false;
     } catch (_) {
@@ -156,8 +159,13 @@ class ApiService {
 class ApiException implements Exception {
   final String message;
   final String code;
+  final int? statusCode;
 
-  ApiException({required this.message, this.code = 'UNKNOWN_ERROR'});
+  ApiException({
+    required this.message,
+    this.code = 'UNKNOWN_ERROR',
+    this.statusCode,
+  });
 
   @override
   String toString() => message;

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/models/wall_content_model.dart';
 
 typedef OnOptionSelected = void Function(String optionKey, String interactionType);
@@ -17,6 +19,9 @@ class ThisOrThatCardRenderer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     final optA = item.options.isNotEmpty ? item.options[0] : null;
     final optB = item.options.length > 1 ? item.options[1] : null;
 
@@ -28,31 +33,37 @@ class ThisOrThatCardRenderer extends StatelessWidget {
               context: context,
               option: optA,
               badge: 'OPTION A',
-              color: const Color(0xFF0058FF),
+              isDark: isDark,
               onTap: () => onSelect(optA.optionKey, 'select'),
             ),
           ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(20),
+            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+            ),
           ),
           child: Text(
             'OR',
-            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w900, color: const Color(0xFF0058FF)),
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              color: const Color(0xFF0058FF),
+            ),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         if (optB != null)
           Expanded(
             child: _buildChoiceCard(
               context: context,
               option: optB,
               badge: 'OPTION B',
-              color: const Color(0xFF5AFF00),
-              textColor: Colors.black87,
+              isDark: isDark,
               onTap: () => onSelect(optB.optionKey, 'select'),
             ),
           ),
@@ -64,22 +75,27 @@ class ThisOrThatCardRenderer extends StatelessWidget {
     required BuildContext context,
     required ContentOptionModel option,
     required String badge,
-    required Color color,
-    Color textColor = Colors.white,
+    required bool isDark,
     required VoidCallback onTap,
   }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
         borderRadius: BorderRadius.circular(16),
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
+            color: isDark ? const Color(0xFF161E2E) : Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withValues(alpha: 0.5), width: 1.5),
+            border: Border.all(
+              color: isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0),
+              width: 1.5,
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -88,24 +104,36 @@ class ThisOrThatCardRenderer extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: color,
+                  color: const Color(0xFF0058FF).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   badge,
-                  style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w900, color: textColor),
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF0058FF),
+                  ),
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Text(
                 option.label,
-                style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w800),
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+                ),
               ),
               if (option.subtext != null) ...[
                 const SizedBox(height: 4),
                 Text(
                   option.subtext!,
-                  style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[600]),
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    height: 1.35,
+                  ),
                 ),
               ],
             ],
@@ -129,66 +157,84 @@ class PickOneCardRenderer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Select your top choice:',
-          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.grey[600]),
-        ),
-        const SizedBox(height: 12),
-        Expanded(
-          child: ListView.separated(
-            itemCount: item.options.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (context, idx) {
-              final opt = item.options[idx];
-              return InkWell(
-                onTap: () => onSelect(opt.optionKey, 'select'),
-                borderRadius: BorderRadius.circular(14),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return ListView.separated(
+      itemCount: item.options.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (context, i) {
+        final opt = item.options[i];
+        return InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onSelect(opt.optionKey, 'select');
+          },
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF161E2E) : Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF0058FF).withValues(alpha: 0.2)),
+                    color: const Color(0xFF0058FF).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Row(
+                  child: Center(
+                    child: Text(
+                      '${i + 1}',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF0058FF),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: const Color(0xFF0058FF).withValues(alpha: 0.1),
-                          border: Border.all(color: const Color(0xFF0058FF)),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          '${idx + 1}',
-                          style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: const Color(0xFF0058FF), fontSize: 13),
+                      Text(
+                        opt.label,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
                         ),
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(opt.label, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15)),
-                            if (opt.subtext != null)
-                              Text(opt.subtext!, style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600])),
-                          ],
+                      if (opt.subtext != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          opt.subtext!,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          ),
                         ),
-                      ),
-                      const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey),
+                      ],
                     ],
                   ),
                 ),
-              );
-            },
+                const HugeIcon(
+                  icon: HugeIcons.strokeRoundedArrowRight01,
+                  color: Color(0xFF64748B),
+                  size: 18,
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -206,40 +252,68 @@ class WouldYouCardRenderer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: item.options.map((opt) {
-        final isYes = opt.optionKey == 'yes';
-        final isMaybe = opt.optionKey == 'maybe';
-        final color = isYes ? const Color(0xFF0058FF) : isMaybe ? const Color(0xFFF59E0B) : const Color(0xFF64748B);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    return Column(
+      children: item.options.map((opt) {
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: SizedBox(
-            width: double.infinity,
-            height: 58,
-            child: ElevatedButton(
-              onPressed: () => onSelect(opt.optionKey, isYes ? 'positive' : isMaybe ? 'weak_positive' : 'skip'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isYes ? color : color.withValues(alpha: 0.1),
-                foregroundColor: isYes ? Colors.white : color,
-                elevation: isYes ? 3 : 0,
-                side: BorderSide(color: color, width: 1.5),
-                shape: RoundedRectangleModal(),
+          child: InkWell(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              onSelect(opt.optionKey, 'select');
+            },
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF161E2E) : Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0),
+                ),
               ),
-              child: Text(
-                opt.label,
-                style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w800),
+              child: Row(
+                children: [
+                  const HugeIcon(
+                    icon: HugeIcons.strokeRoundedCheckmarkBadge01,
+                    color: Color(0xFF0058FF),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          opt.label,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+                          ),
+                        ),
+                        if (opt.subtext != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            opt.subtext!,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
         );
       }).toList(),
     );
-  }
-
-  static RoundedRectangleBorder RoundedRectangleModal() {
-    return RoundedRectangleBorder(borderRadius: BorderRadius.circular(14));
   }
 }
 
@@ -256,66 +330,89 @@ class ReactionCardRenderer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF0058FF), Color(0xFF5AFF00)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+        Expanded(
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF161E2E) : Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0),
+              ),
             ),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(6),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0058FF).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Center(
+                    child: HugeIcon(
+                      icon: HugeIcons.strokeRoundedFlash,
+                      color: Color(0xFF0058FF),
+                      size: 28,
+                    ),
+                  ),
                 ),
-                child: Text(
-                  'FEATURE SPOTLIGHT',
-                  style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w900, color: const Color(0xFF0058FF)),
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                item.titlePrompt,
-                style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white),
-              ),
-              if (item.description != null) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 16),
                 Text(
-                  item.description!,
-                  style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: 0.9)),
+                  item.titlePrompt,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+                  ),
                 ),
+                if (item.description != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    item.description!,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: item.options.map((opt) {
-            return InkWell(
-              onTap: () => onSelect(opt.optionKey, 'react'),
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
-                ),
-                child: Text(
-                  opt.label,
-                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: ElevatedButton(
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    onSelect(opt.optionKey, 'react');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                    foregroundColor: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text(
+                    opt.label,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
             );
@@ -339,59 +436,76 @@ class ScenarioCardRenderer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFF00A6).withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.psychology_alt_rounded, color: Color(0xFFFF00A6), size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'GROWTH DILEMMA',
-                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w900, color: const Color(0xFFFF00A6)),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return ListView.separated(
+      itemCount: item.options.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (context, i) {
+        final opt = item.options[i];
+        return InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onSelect(opt.optionKey, 'select');
+          },
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF161E2E) : Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0),
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Expanded(
-          child: ListView.separated(
-            itemCount: item.options.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (context, idx) {
-              final opt = item.options[idx];
-              return InkWell(
-                onTap: () => onSelect(opt.optionKey, 'select'),
-                borderRadius: BorderRadius.circular(14),
-                child: Container(
-                  padding: const EdgeInsets.all(14),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
+                    color: const Color(0xFF0058FF).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
                   ),
+                  child: const Center(
+                    child: HugeIcon(
+                      icon: HugeIcons.strokeRoundedTarget02,
+                      color: Color(0xFF0058FF),
+                      size: 16,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(opt.label, style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 14)),
+                      Text(
+                        opt.label,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+                        ),
+                      ),
                       if (opt.subtext != null) ...[
-                        const SizedBox(height: 4),
-                        Text(opt.subtext!, style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600])),
+                        const SizedBox(height: 2),
+                        Text(
+                          opt.subtext!,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          ),
+                        ),
                       ],
                     ],
                   ),
                 ),
-              );
-            },
+              ],
+            ),
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -443,45 +557,6 @@ class IntentChoiceCardRenderer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: item.options.map((opt) {
-        final isNow = opt.optionKey == 'act_now';
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: SizedBox(
-            width: double.infinity,
-            height: 60,
-            child: ElevatedButton(
-              onPressed: () => onSelect(opt.optionKey, isNow ? 'intent' : 'weak_positive'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isNow ? const Color(0xFF0058FF) : Colors.white,
-                foregroundColor: isNow ? Colors.white : Colors.black87,
-                elevation: isNow ? 4 : 0,
-                side: BorderSide(
-                  color: isNow ? const Color(0xFF0058FF) : Colors.grey.withValues(alpha: 0.3),
-                  width: 1.5,
-                ),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(opt.label, style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w800)),
-                  if (opt.subtext != null)
-                    Text(
-                      opt.subtext!,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: isNow ? Colors.white.withValues(alpha: 0.8) : Colors.grey[600],
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
+    return PickOneCardRenderer(item: item, onSelect: onSelect);
   }
 }

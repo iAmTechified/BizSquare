@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../core/models/wall_content_model.dart';
 import '../../core/providers/auth_state_provider.dart';
 import '../../core/services/interest_service.dart';
+import '../../core/widgets/shimmer_loading.dart';
 import 'widgets/multi_format_card_renderers.dart';
 
 class DailyInteractiveWallScreen extends ConsumerStatefulWidget {
@@ -40,7 +43,6 @@ class _DailyInteractiveWallScreenState extends ConsumerState<DailyInteractiveWal
           _cardStartTime = DateTime.now();
         });
       } else {
-        // Fallback default curated multi-format items if offline / initial setup
         setState(() {
           _sessionId = null;
           _items = _getFallbackItems();
@@ -56,71 +58,119 @@ class _DailyInteractiveWallScreenState extends ConsumerState<DailyInteractiveWal
       WallSessionItemModel(
         contentId: 'fallback_1',
         format: 'THIS_OR_THAT',
-        titlePrompt: 'Which would you rather upgrade right now?',
-        description: 'Preference between mobile smartphone hardware and workstation laptops.',
+        titlePrompt: 'Which business capability would you upgrade first right now?',
+        description: 'Reveals priority between direct customer outreach and inventory workstation infrastructure.',
         contextType: 'general',
         poolType: 'PERSONALIZED',
         orderIndex: 1,
         options: [
-          ContentOptionModel(optionKey: 'opt_a', label: 'Latest Flagship Smartphone', subtext: 'Top camera, battery & speed'),
-          ContentOptionModel(optionKey: 'opt_b', label: 'High-Performance Laptop', subtext: 'Workstation speed for business'),
+          ContentOptionModel(
+            optionKey: 'opt_a',
+            label: 'Mobile WhatsApp Commerce Hub',
+            subtext: 'High-speed customer lead processing and catalog broadcast',
+          ),
+          ContentOptionModel(
+            optionKey: 'opt_b',
+            label: 'Business Fulfillment & Operations',
+            subtext: 'Inventory management and delivery logistics speed',
+          ),
         ],
       ),
       WallSessionItemModel(
         contentId: 'fallback_2',
         format: 'WOULD_YOU',
-        titlePrompt: 'Would you test noise-cancelling audio earbuds for daily commuting & calls?',
-        description: 'Testing audio gear curiosity and work environment preferences.',
-        contextType: 'lifestyle',
+        titlePrompt: 'Would you test same-day dispatch partnerships with verified local riders?',
+        description: 'Testing delivery efficiency readiness and order fulfillment preferences.',
+        contextType: 'business',
         poolType: 'RELATED',
         orderIndex: 2,
         options: [
-          ContentOptionModel(optionKey: 'yes', label: 'Definitely Yes 🔥', subtext: 'I value crystal sound'),
-          ContentOptionModel(optionKey: 'maybe', label: 'Maybe / Curious 👀', subtext: 'Looking for reviews'),
-          ContentOptionModel(optionKey: 'no', label: 'Not for Me', subtext: 'Standard audio is fine'),
+          ContentOptionModel(
+            optionKey: 'yes',
+            label: 'Yes, Absolutely',
+            subtext: 'Need faster fulfillment for customer satisfaction',
+          ),
+          ContentOptionModel(
+            optionKey: 'maybe',
+            label: 'Interested to Learn More',
+            subtext: 'Would compare pricing and coverage rates',
+          ),
+          ContentOptionModel(
+            optionKey: 'no',
+            label: 'Not Right Now',
+            subtext: 'Existing logistics arrangement is sufficient',
+          ),
         ],
       ),
       WallSessionItemModel(
         contentId: 'fallback_3',
         format: 'SCENARIO',
-        titlePrompt: 'You receive a ₦100,000 growth grant this week. Where does it create the most impact?',
-        description: 'Reveals commercial priorities and high-leverage bottlenecks.',
+        titlePrompt: 'You secure a ₦200,000 seasonal expansion fund. Where does it create the highest ROI?',
+        description: 'Pinpoints commercial focus areas for your upcoming trade matches.',
         contextType: 'business',
         poolType: 'EXPLORATION',
         orderIndex: 3,
         options: [
-          ContentOptionModel(optionKey: 'opt_ads', label: 'Targeted Ads & Acquisition', subtext: 'Drive direct leads'),
-          ContentOptionModel(optionKey: 'opt_dispatch', label: 'Express Delivery Logistics', subtext: 'Same-day customer fulfillment'),
-          ContentOptionModel(optionKey: 'opt_brand', label: 'Packaging & Branding', subtext: 'Elevate unboxing experience'),
-          ContentOptionModel(optionKey: 'opt_solar', label: 'Solar Power Inverter', subtext: 'Keep operations 24/7'),
+          ContentOptionModel(
+            optionKey: 'opt_ads',
+            label: 'Direct Lead Acquisition',
+            subtext: 'Targeted customer outreach and promotion',
+          ),
+          ContentOptionModel(
+            optionKey: 'opt_dispatch',
+            label: 'Inventory Stocking',
+            subtext: 'Bulk purchase top-selling merchandise',
+          ),
+          ContentOptionModel(
+            optionKey: 'opt_brand',
+            label: 'Packaging & Premium Branding',
+            subtext: 'Elevate unboxing and customer retention',
+          ),
+          ContentOptionModel(
+            optionKey: 'opt_solar',
+            label: 'Power & Operational Stability',
+            subtext: 'Ensure seamless 24/7 business uptime',
+          ),
         ],
       ),
       WallSessionItemModel(
         contentId: 'fallback_4',
         format: 'REACTION_CARD',
-        titlePrompt: 'Mobile 4K Video Rig & Studio Lighting for Product Showcases',
-        description: 'Testing interest in video creation and photography production tools.',
+        titlePrompt: 'Weekly Partner Spotlight Exchange on WhatsApp Status',
+        description: 'Testing willingness to exchange visibility with other verified business owners.',
         contextType: 'emerging',
         poolType: 'BROAD',
         orderIndex: 4,
         options: [
-          ContentOptionModel(optionKey: 'react_love', label: '❤️ Interested'),
-          ContentOptionModel(optionKey: 'react_curious', label: '👀 Curious'),
-          ContentOptionModel(optionKey: 'react_skip', label: '⏭️ Skip'),
+          ContentOptionModel(optionKey: 'react_love', label: 'Highly Interested'),
+          ContentOptionModel(optionKey: 'react_curious', label: 'Open to Details'),
+          ContentOptionModel(optionKey: 'react_skip', label: 'Skip for Now'),
         ],
       ),
       WallSessionItemModel(
         contentId: 'fallback_5',
         format: 'INTENT_CHOICE',
-        titlePrompt: 'If a verified supplier offers flexible-payment clean solar power setup:',
-        description: 'Detects active purchase readiness and clean energy demand.',
+        titlePrompt: 'If a verified vendor offers flexible wholesale terms on trending stock:',
+        description: 'Detects active purchase readiness and inventory scaling intent.',
         contextType: 'business',
         poolType: 'PERSONALIZED',
         orderIndex: 5,
         options: [
-          ContentOptionModel(optionKey: 'act_now', label: 'Get Quote Now ⚡', subtext: 'Urgently need clean power'),
-          ContentOptionModel(optionKey: 'act_wait', label: 'Save for Later', subtext: 'Planning for next quarter'),
-          ContentOptionModel(optionKey: 'act_alt', label: 'Explore Alternatives', subtext: 'Looking at other options'),
+          ContentOptionModel(
+            optionKey: 'act_now',
+            label: 'Request Price Catalog',
+            subtext: 'Looking to purchase stock this week',
+          ),
+          ContentOptionModel(
+            optionKey: 'act_wait',
+            label: 'Bookmark for Next Cycle',
+            subtext: 'Planning inventory for coming month',
+          ),
+          ContentOptionModel(
+            optionKey: 'act_alt',
+            label: 'Compare Other Vendors',
+            subtext: 'Seeking alternative category suppliers',
+          ),
         ],
       ),
     ];
@@ -129,10 +179,10 @@ class _DailyInteractiveWallScreenState extends ConsumerState<DailyInteractiveWal
   Future<void> _handleOptionSelected(String optionKey, String interactionType) async {
     if (_items.isEmpty || _cardIndex >= _items.length) return;
 
+    HapticFeedback.selectionClick();
     final currentItem = _items[_cardIndex];
     final dwellMs = DateTime.now().difference(_cardStartTime).inMilliseconds;
 
-    // Asynchronously submit interaction event with idempotency
     final interestService = ref.read(interestServiceProvider);
     interestService.submitWallInteraction(
       sessionId: _sessionId,
@@ -144,7 +194,7 @@ class _DailyInteractiveWallScreenState extends ConsumerState<DailyInteractiveWal
     );
 
     if (_cardIndex >= _items.length - 1) {
-      // Completed all items
+      HapticFeedback.mediumImpact();
       if (_sessionId != null) {
         interestService.completeDailyWallSession(_sessionId!);
       }
@@ -190,8 +240,35 @@ class _DailyInteractiveWallScreenState extends ConsumerState<DailyInteractiveWal
     if (_isLoading) {
       return Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
-        body: const Center(
-          child: CircularProgressIndicator(color: Color(0xFF0058FF)),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const ShimmerBox(width: 140, height: 16),
+                const SizedBox(height: 12),
+                const ShimmerBox(width: double.infinity, height: 28),
+                const SizedBox(height: 24),
+                Expanded(
+                  child: ShimmerLoading(
+                    child: Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF161E2E) : Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const ShimmerBox(width: double.infinity, height: 50, borderRadius: 14),
+              ],
+            ),
+          ),
         ),
       );
     }
@@ -201,83 +278,145 @@ class _DailyInteractiveWallScreenState extends ConsumerState<DailyInteractiveWal
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text(
-          'Daily Wall',
-          style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 18),
-        ),
-        actions: [
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0058FF).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '${_cardIndex + 1} / ${_items.length}',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF0058FF),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Top Bar: Step Counter & Progress
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0058FF).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const HugeIcon(
+                              icon: HugeIcons.strokeRoundedFlash,
+                              color: Color(0xFF0058FF),
+                              size: 14,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Daily Alignment',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF0058FF),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Card ${_cardIndex + 1} of ${_items.length}',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      HapticFeedback.selectionClick();
+                      ref.read(userStateProvider.notifier).completeDailyWall();
+                      context.go('/home');
+                    },
+                    child: Text(
+                      'Skip',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
               // Progress Bar
               ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
                   value: progress,
-                  minHeight: 6,
-                  backgroundColor: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06),
+                  minHeight: 4,
+                  backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
                   valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF0058FF)),
                 ),
               ),
-              const SizedBox(height: 18),
 
-              // Title Prompt Header
-              Text(
-                currentItem.titlePrompt,
-                style: GoogleFonts.inter(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  height: 1.3,
+              const SizedBox(height: 20),
+
+              // Question Title & Subtext
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 240),
+                child: Column(
+                  key: ValueKey(currentItem.contentId),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      currentItem.titlePrompt,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+                        letterSpacing: -0.4,
+                        height: 1.3,
+                      ),
+                    ),
+                    if (currentItem.description != null && currentItem.description!.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        currentItem.description!,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              if (currentItem.description != null && currentItem.format != 'REACTION_CARD') ...[
-                const SizedBox(height: 6),
-                Text(
-                  currentItem.description!,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-              const SizedBox(height: 18),
 
-              // Format-Specific Dynamic Card Container
+              const SizedBox(height: 20),
+
+              // Reel Card Interactive Content
               Expanded(
                 child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
+                  duration: const Duration(milliseconds: 300),
+                  transitionBuilder: (child, animation) {
+                    return FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0.04, 0),
+                          end: Offset.zero,
+                        ).animate(animation),
+                        child: child,
+                      ),
+                    );
+                  },
                   child: KeyedSubtree(
                     key: ValueKey(currentItem.contentId),
                     child: _buildCardContent(currentItem),
                   ),
                 ),
               ),
+
+              const SizedBox(height: 12),
             ],
           ),
         ),

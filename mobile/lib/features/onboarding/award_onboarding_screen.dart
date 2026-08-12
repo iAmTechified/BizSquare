@@ -172,30 +172,30 @@ class _AwardOnboardingScreenState extends ConsumerState<AwardOnboardingScreen>
                     children: [
                       _buildSlide(
                         illustration: _Slide1Illustration(loopCtrl: _loopCtrl, isDark: isDark),
-                        badge: 'DISCOVERY ENGINE',
+                        badge: 'COMMUNITY NETWORK',
                         badgeColor: AppTheme.primaryBlue,
-                        title: 'Intelligent B2B\nTrade Discovery',
+                        title: 'Verified Business\nCommunity',
                         desc:
-                            'Connect with verified suppliers, distributors, and buyers tailored to your specific micro-niche across Africa.',
+                            'Join an exclusive circle of verified business owners, retailers, and suppliers across Nigeria.',
                         isDark: isDark,
                       ),
                       _buildSlide(
                         illustration: _Slide2Illustration(loopCtrl: _loopCtrl, isDark: isDark),
-                        badge: 'WHATSAPP-FIRST',
-                        badgeColor: AppTheme.secondaryLime,
-                        badgeTextColor: const Color(0xFF080D1A),
-                        title: 'Zero Noise.\nDirect WhatsApp Deals',
+                        badge: 'CONTACT GAIN',
+                        badgeColor: const Color(0xFF10B981),
+                        badgeTextColor: isDark ? const Color(0xFF10B981) : const Color(0xFF047857),
+                        title: 'Gain Verified\nContacts Weekly',
                         desc:
-                            'No spammy groups or endless scrolling. High-intent matches land directly on your WhatsApp every week.',
+                            'Receive direct WhatsApp contact matches tailored specifically to your product offerings and supply needs.',
                         isDark: isDark,
                       ),
                       _buildSlide(
                         illustration: _Slide3Illustration(loopCtrl: _loopCtrl, isDark: isDark),
-                        badge: 'COLLISION-FREE',
-                        badgeColor: AppTheme.accentMagenta,
-                        title: 'Precision Matches\n& Pocket CRM',
+                        badge: 'SPOTLIGHT & VISIBILITY',
+                        badgeColor: const Color(0xFF0058FF),
+                        title: 'Spotlight &\nBusiness Reach',
                         desc:
-                            'Zero competitor collision. Manage leads, track customer grades, and circulate trade tokens in one seamless hub.',
+                            'Broadcast your special offers across partner WhatsApp networks and manage your customer contacts with ease.',
                         isDark: isDark,
                       ),
                     ],

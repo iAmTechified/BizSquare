@@ -23,7 +23,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 16),
-              Text('Create\naccount ✨', style: GoogleFonts.inter(fontSize: 32, fontWeight: FontWeight.w800, color: const Color(0xFF111827), height: 1.15)),
+              Text('Create\nAccount', style: GoogleFonts.inter(fontSize: 32, fontWeight: FontWeight.w800, color: const Color(0xFF111827), height: 1.15)),
               const SizedBox(height: 8),
               Text('Join thousands of businesses growing together', style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF6B7280))),
               const SizedBox(height: 36),

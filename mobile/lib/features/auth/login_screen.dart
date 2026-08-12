@@ -3,11 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../core/providers/auth_state_provider.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/biometric_service.dart';
 import '../../core/utils/phone_normalizer.dart';
-import '../../core/widgets/bizsquare_loader.dart';
+import '../../core/widgets/bizsquare_text_field.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -22,6 +23,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _isLoading = false;
   bool _isAuthenticatingBiometrics = false;
   bool _hasLinkedAccount = false;
+  bool _obscurePin = true;
   Map<String, dynamic>? _linkedAccount;
   String? _errorMessage;
 
@@ -40,7 +42,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         setState(() {
           _hasLinkedAccount = true;
           _linkedAccount = account;
-          // Pre-fill phone if available
           if (account?['phoneNumber'] != null && _phoneController.text.isEmpty) {
             _phoneController.text = account!['phoneNumber'] as String;
           }
@@ -61,13 +62,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final pin = _pinController.text.trim();
 
     if (rawPhone.isEmpty || pin.isEmpty) {
-      setState(() => _errorMessage = 'Please enter phone number and 4-digit PIN');
+      setState(() => _errorMessage = 'Please enter your phone number and 4-digit PIN.');
       return;
     }
 
     final normalizedPhone = PhoneNormalizer.normalize(rawPhone);
     if (normalizedPhone.isEmpty) {
-      setState(() => _errorMessage = 'Please enter a valid phone number');
+      setState(() => _errorMessage = 'Please enter a valid WhatsApp phone number.');
       return;
     }
 
@@ -75,6 +76,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _isLoading = true;
       _errorMessage = null;
     });
+    HapticFeedback.mediumImpact();
 
     try {
       final api = ref.read(apiServiceProvider);
@@ -96,17 +98,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         context.go('/daily-wall');
       }
     } on ApiException catch (e) {
+      debugPrint('Login API error: ${e.message}');
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = e.message;
+          _errorMessage = e.statusCode == 401
+              ? 'The phone number or PIN entered is incorrect. Please check and try again.'
+              : 'Unable to sign in. Please verify your details and try again.';
         });
       }
     } catch (e) {
+      debugPrint('Login unexpected error: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Unable to connect to server. Please verify your connection.';
+          _errorMessage = 'Unable to connect right now. Please check your internet connection.';
         });
       }
     }
@@ -138,17 +144,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (mounted) {
         context.go('/daily-wall');
       }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Biometric verification failed. Please enter your PIN.',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: const Color(0xFFFF0055),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
     }
   }
 
@@ -160,15 +155,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios_new_rounded,
-            size: 18,
-            color: isDark ? Colors.white : const Color(0xFF0F172A),
+          icon: HugeIcon(
+            icon: HugeIcons.strokeRoundedArrowLeft01,
+            color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+            size: 22,
           ),
-          onPressed: () => context.go('/auth-wall'),
+          onPressed: () {
+            HapticFeedback.selectionClick();
+            context.pop();
+          },
         ),
       ),
       body: SafeArea(
@@ -177,154 +175,169 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Screen Header
               Text(
-                'Welcome\nback',
+                'Welcome back',
                 style: GoogleFonts.plusJakartaSans(
-                  fontSize: 34,
+                  fontSize: 26,
                   fontWeight: FontWeight.w800,
-                  height: 1.1,
-                  letterSpacing: -1.0,
+                  color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+                  letterSpacing: -0.6,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
-                'Enter your registered phone number and 4-digit PIN to access your account.',
+                'Sign in to access your business network, weekly contact matches, and Spotlight.',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 14,
+                  fontWeight: FontWeight.w500,
                   color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  height: 1.45,
                 ),
               ),
-              const SizedBox(height: 32),
 
+              const SizedBox(height: 28),
+
+              // Friendly Error Banner (if present)
               if (_errorMessage != null) ...[
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  margin: const EdgeInsets.only(bottom: 20),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFF0055).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFFF0055).withValues(alpha: 0.3)),
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
                   ),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.error_outline_rounded, color: Color(0xFFFF0055), size: 18),
-                      const SizedBox(width: 8),
+                      const HugeIcon(
+                        icon: HugeIcons.strokeRoundedAlertCircle,
+                        color: Color(0xFFEF4444),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           _errorMessage!,
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.plusJakartaSans(
                             fontSize: 13,
-                            color: const Color(0xFFFF0055),
                             fontWeight: FontWeight.w600,
+                            color: const Color(0xFFEF4444),
+                            height: 1.35,
                           ),
                         ),
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(height: 20),
               ],
 
               // Phone Field
-              TextField(
+              BizSquareTextField(
+                label: 'Phone Number',
+                hintText: 'e.g. 08012345678',
                 controller: _phoneController,
+                prefixIcon: HugeIcons.strokeRoundedCall02,
                 keyboardType: TextInputType.phone,
-                decoration: InputDecoration(
-                  labelText: 'Phone Number',
-                  hintText: '0801 234 5678 or +234...',
-                  prefixIcon: const Icon(Icons.phone_rounded, size: 20),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
               ),
-              const SizedBox(height: 16),
+
+              const SizedBox(height: 20),
 
               // PIN Field
-              TextField(
+              BizSquareTextField(
+                label: '4-Digit Security PIN',
+                hintText: '••••',
                 controller: _pinController,
-                obscureText: true,
+                prefixIcon: HugeIcons.strokeRoundedLockPassword,
+                obscureText: _obscurePin,
                 keyboardType: TextInputType.number,
                 maxLength: 4,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: InputDecoration(
-                  labelText: '4-Digit Security PIN',
-                  counterText: '',
-                  prefixIcon: const Icon(Icons.lock_rounded, size: 20),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Sign In Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _submitLogin,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0058FF),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                suffix: IconButton(
+                  icon: HugeIcon(
+                    icon: _obscurePin ? HugeIcons.strokeRoundedViewOffSlash : HugeIcons.strokeRoundedView,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    size: 20,
                   ),
-                  child: _isLoading
-                      ? const BizSquareLoader(size: 20)
-                      : Text(
-                          'Sign In',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                  onPressed: () => setState(() => _obscurePin = !_obscurePin),
                 ),
               ),
 
-              // Biometrics Option (ONLY rendered if linked account exists!)
+              const SizedBox(height: 28),
+
+              // Primary Sign In Button
+              ElevatedButton(
+                onPressed: _isLoading ? null : _submitLogin,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0058FF),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  elevation: 0,
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : Text(
+                        'Sign In',
+                        style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w700),
+                      ),
+              ),
+
+              // Biometric Sign In Option (if enabled on device)
               if (_hasLinkedAccount) ...[
                 const SizedBox(height: 16),
-                Center(
-                  child: TextButton.icon(
-                    onPressed: _isAuthenticatingBiometrics ? null : _handleBiometricAuth,
-                    icon: _isAuthenticatingBiometrics
-                        ? const BizSquareLoader(size: 16)
-                        : const Icon(
-                            Icons.fingerprint_rounded,
-                            color: Color(0xFF0058FF),
-                            size: 20,
-                          ),
-                    label: Text(
-                      'Use Biometrics to Sign In',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF0058FF),
-                      ),
+                OutlinedButton.icon(
+                  onPressed: _isAuthenticatingBiometrics ? null : _handleBiometricAuth,
+                  icon: const HugeIcon(
+                    icon: HugeIcons.strokeRoundedShieldUser,
+                    color: Color(0xFF0058FF),
+                    size: 20,
+                  ),
+                  label: Text(
+                    'Sign In with Biometrics',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF0058FF),
                     ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 50),
+                    side: const BorderSide(color: Color(0xFF0058FF), width: 1.2),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                 ),
               ],
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
 
-              // Don't have an account link
+              // Footer Register Prompt
               Center(
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      "Don't have a registered business?",
+                      "Don't have an account? ",
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13.5,
+                        fontSize: 13,
                         color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                       ),
                     ),
-                    const SizedBox(width: 6),
                     GestureDetector(
-                      onTap: () => context.go('/register-steps'),
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        context.pushReplacement('/register-steps');
+                      },
                       child: Text(
-                        'Register',
+                        'Create Account',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
                           color: const Color(0xFF0058FF),
                         ),
                       ),
@@ -332,6 +345,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ],
                 ),
               ),
+
+              const SizedBox(height: 20),
             ],
           ),
         ),

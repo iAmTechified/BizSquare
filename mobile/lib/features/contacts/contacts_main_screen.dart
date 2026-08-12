@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 import '../../../core/providers/contacts_state_provider.dart';
+import '../../../core/widgets/shimmer_loading.dart';
 import 'widgets/contacts_search_bar.dart';
 import 'widgets/contact_card.dart';
 import 'widgets/square_contacts_tab.dart';
@@ -310,7 +311,14 @@ class _ContactsMainScreenState extends ConsumerState<ContactsMainScreen> with Si
             // Content Area
             Expanded(
               child: state.isLoading
-                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF0058FF)))
+                  ? ShimmerLoading(
+                      child: ListView.separated(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        itemCount: 6,
+                        separatorBuilder: (_, _) => const SizedBox(height: 12),
+                        itemBuilder: (_, __) => const ShimmerCard(height: 96, borderRadius: 14),
+                      ),
+                    )
                   : state.isSearchActive
                       ? _buildSearchResults(state, notifier, isDark)
                       : state.activeLabelFilter != null

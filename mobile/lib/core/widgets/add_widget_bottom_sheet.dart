@@ -151,7 +151,7 @@ class _AddWidgetBottomSheetState extends ConsumerState<AddWidgetBottomSheet> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  '3 New Matches Waiting 🔥',
+                  '3 New Matches Waiting',
                   style: AppTheme.satoshi(
                     fontSize: 14.5,
                     fontWeight: FontWeight.w800,
@@ -190,7 +190,7 @@ class _AddWidgetBottomSheetState extends ConsumerState<AddWidgetBottomSheet> {
                       child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                     )
                   : Text(
-                      _pinnedSuccessfully ? 'Widget Added ✓' : 'Add to Home Screen ⚡',
+                      _pinnedSuccessfully ? 'Widget Added' : 'Add to Home Screen',
                       style: AppTheme.satoshi(fontWeight: FontWeight.w800, fontSize: 15),
                     ),
             ),

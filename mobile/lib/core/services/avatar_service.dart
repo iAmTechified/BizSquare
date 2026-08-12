@@ -370,9 +370,10 @@ class AvatarService {
     required String seed,
     String style = 'bottts',
     String backgroundColor = 'b6e3f4',
+    bool animated = true,
   }) {
     final cleanSeed = Uri.encodeComponent(seed.trim());
-    return 'https://api.dicebear.com/9.x/$style/png?seed=$cleanSeed&size=256&backgroundColor=$backgroundColor';
+    return 'https://api.dicebear.com/9.x/$style/png?seed=$cleanSeed&size=256&backgroundColor=$backgroundColor&animated=$animated';
   }
 
   Future<String?> cacheOnlineAvatar(String url, String seed) async {

@@ -264,7 +264,7 @@ class _AvatarPickerSheetState extends ConsumerState<AvatarPickerSheet>
                 labelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
                 tabs: const [
                   Tab(text: 'Offline Critters (24)'),
-                  Tab(text: 'Online Generator ⚡'),
+                  Tab(text: 'Online Generator'),
                 ],
               ),
             ),
@@ -616,7 +616,7 @@ class _AvatarPickerSheetState extends ConsumerState<AvatarPickerSheet>
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Critter saved locally for offline use! ✨',
+                'Critter saved locally for offline use.',
                 style: GoogleFonts.inter(fontWeight: FontWeight.w600),
               ),
               backgroundColor: const Color(0xFF10B981),

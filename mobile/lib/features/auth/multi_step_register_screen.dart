@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 import '../../core/data/micro_niche_taxonomy.dart';
 import '../../core/providers/auth_state_provider.dart';
@@ -12,7 +13,7 @@ import '../../core/services/api_service.dart';
 import '../../core/utils/phone_normalizer.dart';
 import '../../core/widgets/animated_critter_avatar.dart';
 import '../../core/widgets/avatar_picker_sheet.dart';
-import '../../core/widgets/bizsquare_loader.dart';
+import '../../core/widgets/bizsquare_text_field.dart';
 import '../../core/services/avatar_service.dart';
 
 class MultiStepRegisterScreen extends ConsumerStatefulWidget {
@@ -31,7 +32,7 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
   final _businessNameController = TextEditingController();
   final _phoneController = TextEditingController();
 
-  // Step 2 Micro-Niche State (Primary vs Secondary Differentiation)
+  // Step 2 Micro-Niche State (Two-Step Collapsible Accordion & Mutual Exclusion)
   String? _primaryMicroNicheId;
   final Set<String> _secondaryMicroNicheIds = {};
   String _nicheSearchQuery = '';
@@ -75,6 +76,8 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
     if (_primaryMicroNicheId == null && draft.selectedMicroNicheIds.isNotEmpty) {
       _primaryMicroNicheId = draft.selectedMicroNicheIds.first;
     }
+
+    _isSelectingPrimaryMode = _primaryMicroNicheId == null;
 
     _verificationCodeController.text = draft.verificationCode ?? '';
     _pinController.text = draft.pin ?? '';
@@ -120,30 +123,37 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
     });
   }
 
-  // Combined active supply micro-niches
   List<String> get _allSelectedMicroNiches {
     final list = <String>[];
-    if (_primaryMicroNicheId != null) list.add(_primaryMicroNicheId!);
-    list.addAll(_secondaryMicroNicheIds);
+    if (_primaryMicroNicheId != null) {
+      list.add(_primaryMicroNicheId!);
+    }
+    for (final id in _secondaryMicroNicheIds) {
+      if (!list.contains(id)) list.add(id);
+    }
     return list;
   }
 
-  // ==========================================
-  // NAVIGATION & STEP VALIDATION
-  // ==========================================
   Future<void> _handleNext() async {
     setState(() => _errorMessage = null);
+    HapticFeedback.mediumImpact();
 
     if (_step == 1) {
       final bName = _businessNameController.text.trim();
       final phone = _phoneController.text.trim();
+
       if (bName.isEmpty) {
-        setState(() => _errorMessage = 'Please enter your Business / Store Name');
+        setState(() => _errorMessage = 'Please enter your business or store name.');
         return;
       }
+      if (phone.isEmpty) {
+        setState(() => _errorMessage = 'Please enter your WhatsApp phone number.');
+        return;
+      }
+
       final normalized = PhoneNormalizer.normalize(phone);
       if (normalized.isEmpty) {
-        setState(() => _errorMessage = 'Please enter a valid Phone Number');
+        setState(() => _errorMessage = 'Please enter a valid phone number.');
         return;
       }
 
@@ -156,7 +166,7 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
       setState(() => _step = 2);
     } else if (_step == 2) {
       if (_primaryMicroNicheId == null) {
-        setState(() => _errorMessage = 'Please select your Primary Offer (What you mainly sell)');
+        setState(() => _errorMessage = 'Please choose the main thing you sell first.');
         return;
       }
 
@@ -170,7 +180,7 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
     } else if (_step == 3) {
       final code = _verificationCodeController.text.trim().toUpperCase();
       if (code.isEmpty || code.length < 4) {
-        setState(() => _errorMessage = 'Please enter your Passcode (Use B41230 in dev mode)');
+        setState(() => _errorMessage = 'Please enter the setup passcode.');
         return;
       }
 
@@ -208,24 +218,26 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
           _step = 4;
         });
       } on ApiException catch (e) {
+        debugPrint('Register verify error: ${e.message}');
         setState(() {
           _isLoading = false;
           if (e.code == 'INVALID_CODE') {
-            _errorMessage = 'Invalid Passcode. Use B41230 for dev testing.';
+            _errorMessage = 'Invalid Passcode. In dev mode, please use B41230.';
           } else if (e.code == 'CODE_ALREADY_USED') {
-            _errorMessage = 'This Passcode has already been claimed by another user.';
+            _errorMessage = 'This passcode has already been claimed.';
           } else if (e.code == 'CODE_EXPIRED') {
-            _errorMessage = 'This Passcode has expired. Use B41230 for dev testing.';
+            _errorMessage = 'This passcode has expired. In dev mode, please use B41230.';
           } else if (e.code == 'PHONE_ALREADY_REGISTERED') {
-            _errorMessage = 'This phone number is already registered. Please log in instead.';
+            _errorMessage = 'This phone number is already registered. Please sign in instead.';
           } else {
-            _errorMessage = e.message;
+            _errorMessage = 'Unable to verify passcode. Please check and try again.';
           }
         });
       } catch (e) {
+        debugPrint('Register unexpected error: $e');
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Connection error. Please check your network and try again.';
+          _errorMessage = 'Connection error. Please check your internet and try again.';
         });
       }
     } else if (_step == 4) {
@@ -233,7 +245,7 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
       final pinConfirm = _pinConfirmController.text.trim();
 
       if (pin.length != 4) {
-        setState(() => _errorMessage = 'PIN must be exactly 4 digits');
+        setState(() => _errorMessage = 'PIN must be exactly 4 digits.');
         return;
       }
       if (pin != pinConfirm) {
@@ -246,15 +258,15 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
     } else if (_step == 5) {
       final username = _usernameController.text.trim().replaceAll('@', '');
       if (username.length < 3) {
-        setState(() => _errorMessage = 'Username must be at least 3 characters');
+        setState(() => _errorMessage = 'Username must be at least 3 characters.');
         return;
       }
       if (_isUsernameAvailable == false) {
-        setState(() => _errorMessage = 'Username is not available');
+        setState(() => _errorMessage = 'Username is already taken. Please choose another.');
         return;
       }
       if (_selectedInterestIds.isEmpty) {
-        setState(() => _errorMessage = 'Please select at least 1 interest to tune your matching signals');
+        setState(() => _errorMessage = 'Please select at least 1 product interest for weekly matching.');
         return;
       }
 
@@ -280,14 +292,16 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
           context.go('/daily-wall');
         }
       } on ApiException catch (e) {
+        debugPrint('Complete onboarding API error: ${e.message}');
         setState(() {
           _isLoading = false;
-          _errorMessage = e.message;
+          _errorMessage = 'Unable to complete setup. Please check your details and retry.';
         });
       } catch (e) {
+        debugPrint('Complete onboarding error: $e');
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Failed to complete registration. Please try again.';
+          _errorMessage = 'Failed to complete registration. Please check your internet.';
         });
       }
     }
@@ -310,22 +324,23 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) {
-          _handleBack();
-        }
+        if (!didPop) _handleBack();
       },
       child: Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
         appBar: AppBar(
-          backgroundColor: Colors.transparent,
+          backgroundColor: theme.scaffoldBackgroundColor,
           elevation: 0,
           leading: IconButton(
-            icon: Icon(
-              Icons.arrow_back_ios_new_rounded,
-              size: 18,
-              color: isDark ? Colors.white : const Color(0xFF0F172A),
+            icon: HugeIcon(
+              icon: HugeIcons.strokeRoundedArrowLeft01,
+              color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+              size: 22,
             ),
-            onPressed: _handleBack,
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              _handleBack();
+            },
           ),
           title: Text(
             'Step $_step of 5',
@@ -340,60 +355,66 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
         body: SafeArea(
           child: Column(
             children: [
-              // Progress Bar
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: _step / 5.0,
-                    backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF0058FF)),
-                    minHeight: 4,
-                  ),
+              // Progress Line
+              Container(
+                height: 3,
+                width: double.infinity,
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: (_step / 5).clamp(0.0, 1.0),
+                  child: Container(color: const Color(0xFF0058FF)),
                 ),
               ),
 
-              // Form Body
+              // Content Area
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Friendly Error Banner
                       if (_errorMessage != null) ...[
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          margin: const EdgeInsets.only(bottom: 20),
+                          padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFF0055).withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFFFF0055).withValues(alpha: 0.3)),
+                            color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.error_outline_rounded, color: Color(0xFFFF0055), size: 18),
-                              const SizedBox(width: 8),
+                              const HugeIcon(
+                                icon: HugeIcons.strokeRoundedAlertCircle,
+                                color: Color(0xFFEF4444),
+                                size: 18,
+                              ),
+                              const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
                                   _errorMessage!,
-                                  style: GoogleFonts.inter(
+                                  style: GoogleFonts.plusJakartaSans(
                                     fontSize: 13,
-                                    color: const Color(0xFFFF0055),
                                     fontWeight: FontWeight.w600,
+                                    color: const Color(0xFFEF4444),
                                   ),
                                 ),
                               ),
                             ],
                           ),
                         ),
+                        const SizedBox(height: 16),
                       ],
 
+                      // Render Current Step
                       if (_step == 1) _buildStep1BusinessInfo(isDark),
                       if (_step == 2) _buildStep2OffersDifferentiation(isDark),
                       if (_step == 3) _buildStep3SetupCode(isDark),
                       if (_step == 4) _buildStep4SecurityPin(isDark),
                       if (_step == 5) _buildStep5UsernameAndInterests(isDark),
+
+                      const SizedBox(height: 32),
                     ],
                   ),
                 ),
@@ -423,13 +444,16 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
                     child: _isLoading
-                        ? const BizSquareLoader(size: 20)
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
                         : Text(
-                            _step == 5 ? 'Enter the Square ✨' : 'Continue',
+                            _step == 5 ? 'Complete Registration' : 'Continue',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
-                              letterSpacing: 0.2,
                             ),
                           ),
                   ),
@@ -453,21 +477,32 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
       children: [
         Text(
           'Business Profile',
-          style: GoogleFonts.plusJakartaSans(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.8),
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
+            color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+            letterSpacing: -0.6,
+          ),
         ),
         const SizedBox(height: 6),
         Text(
-          'Pick your business avatar and tell other verified sellers who you are.',
-          style: GoogleFonts.plusJakartaSans(fontSize: 14, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+          'Choose your animated companion avatar and provide your WhatsApp details.',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+          ),
         ),
-        const SizedBox(height: 28),
+        const SizedBox(height: 24),
 
         // Avatar Picker Centerpiece
         Center(
           child: Column(
             children: [
               GestureDetector(
-                onTap: () => AvatarPickerSheet.show(context),
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  AvatarPickerSheet.show(context);
+                },
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
@@ -486,9 +521,18 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
                         decoration: BoxDecoration(
                           color: const Color(0xFF0058FF),
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                            width: 2,
+                          ),
                         ),
-                        child: const Icon(Icons.edit_rounded, size: 16, color: Colors.white),
+                        child: const Center(
+                          child: HugeIcon(
+                            icon: HugeIcons.strokeRoundedEdit02,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -497,10 +541,14 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
               const SizedBox(height: 10),
               Text(
                 activeAvatar.currentAvatar.name,
-                style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700),
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+                ),
               ),
               Text(
-                'Tap to switch avatar',
+                'Tap avatar to choose character',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 12,
                   color: const Color(0xFF0058FF),
@@ -513,44 +561,42 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
 
         const SizedBox(height: 28),
 
-        TextField(
+        BizSquareTextField(
+          label: 'Business / Store Name',
+          hintText: 'e.g. Adebayo Electronics Ltd',
           controller: _businessNameController,
-          decoration: InputDecoration(
-            labelText: 'Business / Store Name',
-            hintText: 'e.g. Adebayo Electronics Ltd',
-            prefixIcon: const Icon(Icons.storefront_rounded, size: 20),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          ),
+          prefixIcon: HugeIcons.strokeRoundedStore01,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
 
-        TextField(
+        BizSquareTextField(
+          label: 'WhatsApp Phone Number',
+          hintText: '08012345678 or +234...',
           controller: _phoneController,
           keyboardType: TextInputType.phone,
-          decoration: InputDecoration(
-            labelText: 'Phone Number (WhatsApp)',
-            hintText: '0801 234 5678 or +234...',
-            prefixIcon: const Icon(Icons.phone_rounded, size: 20),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          ),
+          prefixIcon: HugeIcons.strokeRoundedCall02,
         ),
       ],
     );
   }
 
   // ==========================================
-  // STEP 2: OFFERS DIFFERENTIATION (PRIMARY VS SECONDARY)
+  // STEP 2: OFFERS DIFFERENTIATION (TWO-STEP COLLAPSIBLE ACCORDION)
   // ==========================================
   Widget _buildStep2OffersDifferentiation(bool isDark) {
     final theme = Theme.of(context);
     final categories = MicroNicheTaxonomy.categories;
-    final primaryNiche = _primaryMicroNicheId != null ? MicroNicheTaxonomy.findMicroNicheById(_primaryMicroNicheId!) : null;
+    final primaryNiche = _primaryMicroNicheId != null
+        ? MicroNicheTaxonomy.findMicroNicheById(_primaryMicroNicheId!)
+        : null;
 
     final filteredCategories = _nicheSearchQuery.trim().isEmpty
         ? categories
         : categories.where((cat) {
             final catMatches = cat.name.toLowerCase().contains(_nicheSearchQuery.toLowerCase());
-            final nicheMatches = cat.microNiches.any((mn) => mn.name.toLowerCase().contains(_nicheSearchQuery.toLowerCase()));
+            final nicheMatches = cat.microNiches.any(
+              (mn) => mn.name.toLowerCase().contains(_nicheSearchQuery.toLowerCase()),
+            );
             return catMatches || nicheMatches;
           }).toList();
 
@@ -559,24 +605,34 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
       children: [
         Text(
           'What do you sell?',
-          style: GoogleFonts.plusJakartaSans(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.8),
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
+            color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+            letterSpacing: -0.6,
+          ),
         ),
         const SizedBox(height: 6),
         Text(
-          'Differentiate your main offering from any secondary items you sell.',
-          style: GoogleFonts.plusJakartaSans(fontSize: 14, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+          'Specify your primary product focus, followed by any secondary lines.',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+          ),
         ),
         const SizedBox(height: 24),
 
-        // SECTION 1: PRIMARY OFFER
+        // SECTION 1: PRIMARY OFFER (COLLAPSIBLE)
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF161E2E) : Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: _primaryMicroNicheId != null ? const Color(0xFF0058FF) : (isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0)),
-              width: _primaryMicroNicheId != null ? 1.8 : 1.2,
+              color: _isSelectingPrimaryMode
+                  ? const Color(0xFF0058FF)
+                  : (isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0)),
+              width: _isSelectingPrimaryMode ? 1.8 : 1.2,
             ),
           ),
           child: Column(
@@ -588,7 +644,7 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
                           color: const Color(0xFF0058FF),
                           borderRadius: BorderRadius.circular(6),
@@ -605,7 +661,7 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Main Focus',
+                        'Main Focus (1 of 1)',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -614,14 +670,17 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
                       ),
                     ],
                   ),
-                  if (_primaryMicroNicheId != null)
+                  if (!_isSelectingPrimaryMode && _primaryMicroNicheId != null)
                     GestureDetector(
-                      onTap: () => setState(() => _isSelectingPrimaryMode = true),
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _isSelectingPrimaryMode = true);
+                      },
                       child: Text(
                         'Change',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
                           color: const Color(0xFF0058FF),
                         ),
                       ),
@@ -630,38 +689,62 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
               ),
               const SizedBox(height: 10),
               Text(
-                'What do you mainly sell or deal on?',
+                'What is the main thing you sell or deal on?',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
+                  color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 primaryNiche != null
                     ? 'Selected: ${primaryNiche.name}'
-                    : 'Tap below to select your primary micro-niche from the taxonomy.',
+                    : 'Choose your main trade category from the options below.',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 13,
-                  color: primaryNiche != null ? const Color(0xFF0058FF) : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                  color: primaryNiche != null
+                      ? const Color(0xFF0058FF)
+                      : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
                   fontWeight: primaryNiche != null ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
+
+              // If in primary selection mode, show option selection
+              if (_isSelectingPrimaryMode) ...[
+                const SizedBox(height: 16),
+                _buildKeyboardNicheSelector(
+                  categories: filteredCategories,
+                  excludedIds: _secondaryMicroNicheIds,
+                  selectedId: _primaryMicroNicheId,
+                  onSelect: (id) {
+                    setState(() {
+                      _primaryMicroNicheId = id;
+                      _isSelectingPrimaryMode = false;
+                      _errorMessage = null;
+                    });
+                  },
+                  isDark: isDark,
+                  theme: theme,
+                ),
+              ],
             ],
           ),
         ),
 
         const SizedBox(height: 20),
 
-        // SECTION 2: SECONDARY OFFERS (OPTIONAL)
+        // SECTION 2: SECONDARY OFFERS (EXPANDS WHEN PRIMARY IS SET)
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF161E2E) : Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0),
-              width: 1.2,
+              color: !_isSelectingPrimaryMode
+                  ? const Color(0xFF0058FF)
+                  : (isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0)),
+              width: !_isSelectingPrimaryMode ? 1.8 : 1.2,
             ),
           ),
           child: Column(
@@ -673,7 +756,7 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
                           color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
                           borderRadius: BorderRadius.circular(6),
@@ -707,140 +790,118 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
+                  color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
                 ),
               ),
-              const SizedBox(height: 8),
-
-              if (_secondaryMicroNicheIds.isEmpty)
-                Text(
-                  'No secondary offerings selected (optional).',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                  ),
-                )
-              else
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _secondaryMicroNicheIds.map((id) {
-                    final niche = MicroNicheTaxonomy.findMicroNicheById(id);
-                    return Chip(
-                      label: Text(
-                        niche?.name ?? id,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        ),
-                      ),
-                      deleteIcon: const Icon(Icons.close_rounded, size: 14),
-                      onDeleted: () {
-                        setState(() => _secondaryMicroNicheIds.remove(id));
-                      },
-                      backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      side: BorderSide.none,
-                    );
-                  }).toList(),
+              const SizedBox(height: 4),
+              Text(
+                _isSelectingPrimaryMode
+                    ? 'Select your primary offering above to unlock secondary options.'
+                    : 'Choose up to 2 additional product lines.',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                 ),
+              ),
+
+              if (!_isSelectingPrimaryMode) ...[
+                const SizedBox(height: 16),
+                _buildKeyboardNicheMultiSelector(
+                  categories: filteredCategories,
+                  excludedId: _primaryMicroNicheId,
+                  selectedIds: _secondaryMicroNicheIds,
+                  onToggle: (id) {
+                    setState(() {
+                      if (_secondaryMicroNicheIds.contains(id)) {
+                        _secondaryMicroNicheIds.remove(id);
+                      } else {
+                        if (_secondaryMicroNicheIds.length < 2) {
+                          _secondaryMicroNicheIds.add(id);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('You can select up to 2 secondary offerings.')),
+                          );
+                        }
+                      }
+                    });
+                  },
+                  isDark: isDark,
+                  theme: theme,
+                ),
+              ],
             ],
           ),
         ),
+      ],
+    );
+  }
 
-        const SizedBox(height: 24),
-
-        // Search Bar
-        TextField(
+  Widget _buildKeyboardNicheSelector({
+    required List<dynamic> categories,
+    required Set<String> excludedIds,
+    required String? selectedId,
+    required ValueChanged<String> onSelect,
+    required bool isDark,
+    required ThemeData theme,
+  }) {
+    return Column(
+      children: [
+        // Search Input
+        BizSquareTextField(
+          label: 'Filter Categories',
+          hintText: 'Search micro-niches (e.g. Shoes, Laptops, Solar)...',
+          prefixIcon: HugeIcons.strokeRoundedSearch01,
           onChanged: (val) => setState(() => _nicheSearchQuery = val),
-          decoration: InputDecoration(
-            hintText: 'Search micro-niches (e.g. Footwear, Gadgets, Catering)...',
-            prefixIcon: const Icon(Icons.search_rounded, size: 20),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            filled: true,
-            fillColor: isDark ? const Color(0xFF161E2E) : const Color(0xFFF8FAFC),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          ),
         ),
+        const SizedBox(height: 12),
 
-        const SizedBox(height: 16),
-
-        // Category Accordion List
+        // Accordion of Key Tiles
         ListView.separated(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: filteredCategories.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          itemCount: categories.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 8),
           itemBuilder: (context, i) {
-            final cat = filteredCategories[i];
-            final isExpanded = _expandedCategoryId == cat.id;
+            final cat = categories[i];
+            final availableNiches = (cat.microNiches as List)
+                .where((mn) => !excludedIds.contains(mn.id))
+                .toList();
+
+            if (availableNiches.isEmpty) return const SizedBox.shrink();
 
             return Container(
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF161E2E) : Colors.white,
+                color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0)),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                ),
               ),
               child: Theme(
                 data: theme.copyWith(dividerColor: Colors.transparent),
                 child: ExpansionTile(
-                  key: Key(cat.id),
-                  initiallyExpanded: isExpanded,
+                  key: Key('primary_${cat.id}'),
+                  initiallyExpanded: _expandedCategoryId == cat.id,
                   onExpansionChanged: (exp) {
                     setState(() => _expandedCategoryId = exp ? cat.id : null);
                   },
                   title: Text(
                     cat.name,
-                    style: GoogleFonts.plusJakartaSans(fontSize: 14.5, fontWeight: FontWeight.w700),
+                    style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700),
                   ),
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                       child: Wrap(
                         spacing: 8,
                         runSpacing: 8,
-                        children: cat.microNiches.map((mn) {
-                          final isPrimary = _primaryMicroNicheId == mn.id;
-                          final isSecondary = _secondaryMicroNicheIds.contains(mn.id);
-
-                          return FilterChip(
-                            label: Text(mn.name),
-                            selected: isPrimary || isSecondary,
-                            onSelected: (selected) {
-                              HapticFeedback.selectionClick();
-                              setState(() {
-                                if (selected) {
-                                  if (_primaryMicroNicheId == null || _isSelectingPrimaryMode) {
-                                    // Remove from secondary if was there
-                                    _secondaryMicroNicheIds.remove(mn.id);
-                                    _primaryMicroNicheId = mn.id;
-                                    _isSelectingPrimaryMode = false;
-                                  } else if (_secondaryMicroNicheIds.length < 2) {
-                                    _secondaryMicroNicheIds.add(mn.id);
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Maximum 2 secondary offerings allowed')),
-                                    );
-                                  }
-                                } else {
-                                  if (isPrimary) {
-                                    _primaryMicroNicheId = null;
-                                    _isSelectingPrimaryMode = true;
-                                  } else {
-                                    _secondaryMicroNicheIds.remove(mn.id);
-                                  }
-                                }
-                              });
-                            },
-                            selectedColor: isPrimary ? const Color(0xFF0058FF) : const Color(0xFF10B981),
-                            backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-                            labelStyle: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              fontWeight: (isPrimary || isSecondary) ? FontWeight.w700 : FontWeight.w500,
-                              color: (isPrimary || isSecondary) ? Colors.white : (isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155)),
-                            ),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            side: BorderSide.none,
+                        children: availableNiches.map((mn) {
+                          final isSelected = selectedId == mn.id;
+                          return _buildNicheKeyTile(
+                            label: mn.name,
+                            isSelected: isSelected,
+                            onTap: () => onSelect(mn.id),
+                            isDark: isDark,
                           );
                         }).toList(),
                       ),
@@ -855,6 +916,136 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
     );
   }
 
+  Widget _buildKeyboardNicheMultiSelector({
+    required List<dynamic> categories,
+    required String? excludedId,
+    required Set<String> selectedIds,
+    required ValueChanged<String> onToggle,
+    required bool isDark,
+    required ThemeData theme,
+  }) {
+    return Column(
+      children: [
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: categories.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 8),
+          itemBuilder: (context, i) {
+            final cat = categories[i];
+            // STRICT MUTUAL EXCLUSION: Omit the primary niche from secondary options
+            final availableNiches = (cat.microNiches as List)
+                .where((mn) => mn.id != excludedId)
+                .toList();
+
+            if (availableNiches.isEmpty) return const SizedBox.shrink();
+
+            return Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                ),
+              ),
+              child: Theme(
+                data: theme.copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  key: Key('secondary_${cat.id}'),
+                  title: Text(
+                    cat.name,
+                    style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700),
+                  ),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: availableNiches.map((mn) {
+                          final isSelected = selectedIds.contains(mn.id);
+                          return _buildNicheKeyTile(
+                            label: mn.name,
+                            isSelected: isSelected,
+                            onTap: () => onToggle(mn.id),
+                            isDark: isDark,
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNicheKeyTile({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required bool isDark,
+  }) {
+    return InkWell(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFF0058FF)
+              : (isDark ? const Color(0xFF161E2E) : Colors.white),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF0058FF)
+                : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+            width: isSelected ? 1.5 : 1.0,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF0058FF).withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isSelected) ...[
+              const HugeIcon(
+                icon: HugeIcons.strokeRoundedCheckmarkCircle02,
+                color: Colors.white,
+                size: 14,
+              ),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected
+                    ? Colors.white
+                    : (isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ==========================================
   // STEP 3: SETUP CODE (DEV B41230 SUPPORT)
   // ==========================================
@@ -864,12 +1055,20 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
       children: [
         Text(
           'Enter Setup Code',
-          style: GoogleFonts.plusJakartaSans(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.8),
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
+            color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+            letterSpacing: -0.6,
+          ),
         ),
         const SizedBox(height: 6),
         Text(
-          'Enter the setup code provided by the administrator or use B41230 in dev mode.',
-          style: GoogleFonts.plusJakartaSans(fontSize: 14, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+          'Enter your invite passcode. For testing, you may use the developer code below.',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+          ),
         ),
         const SizedBox(height: 24),
 
@@ -886,10 +1085,14 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
             children: [
               Row(
                 children: [
-                  const Icon(Icons.developer_mode_rounded, color: Color(0xFF0058FF), size: 20),
+                  const HugeIcon(
+                    icon: HugeIcons.strokeRoundedFlash,
+                    color: Color(0xFF0058FF),
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   Text(
-                    'Developer / Test Passcode',
+                    'Developer Passcode',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
@@ -900,7 +1103,7 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
               ),
               const SizedBox(height: 6),
               Text(
-                'In dev mode, use code B41230. In production, use your assigned admin invite code.',
+                'In dev mode, use passcode B41230. In production, use your verified admin invite code.',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 12,
                   color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
@@ -910,7 +1113,7 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
               const SizedBox(height: 10),
               GestureDetector(
                 onTap: () {
-                  HapticFeedback.lightImpact();
+                  HapticFeedback.selectionClick();
                   setState(() {
                     _verificationCodeController.text = 'B41230';
                   });
@@ -922,7 +1125,7 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    '⚡ Tap to Fill "B41230"',
+                    'Tap to Fill "B41230"',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 11.5,
                       fontWeight: FontWeight.w700,
@@ -937,17 +1140,11 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
 
         const SizedBox(height: 28),
 
-        TextField(
+        BizSquareTextField(
+          label: 'Setup Passcode',
+          hintText: 'B41230',
           controller: _verificationCodeController,
-          textCapitalization: TextCapitalization.characters,
-          textAlign: TextAlign.center,
-          style: GoogleFonts.plusJakartaSans(fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: 6),
-          decoration: InputDecoration(
-            labelText: 'Setup Passcode',
-            hintText: 'B41230',
-            prefixIcon: const Icon(Icons.key_rounded, size: 20),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          ),
+          prefixIcon: HugeIcons.strokeRoundedKey01,
         ),
       ],
     );
@@ -962,42 +1159,44 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
       children: [
         Text(
           'Create Security PIN',
-          style: GoogleFonts.plusJakartaSans(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.8),
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
+            color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+            letterSpacing: -0.6,
+          ),
         ),
         const SizedBox(height: 6),
         Text(
-          'Your 4-digit PIN is used to sign in to your account and authorize updates.',
-          style: GoogleFonts.plusJakartaSans(fontSize: 14, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+          'Set a 4-digit PIN to secure your business account.',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+          ),
         ),
         const SizedBox(height: 28),
 
-        TextField(
+        BizSquareTextField(
+          label: '4-Digit PIN',
+          hintText: '••••',
           controller: _pinController,
           obscureText: true,
           keyboardType: TextInputType.number,
           maxLength: 4,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: InputDecoration(
-            labelText: '4-Digit PIN',
-            counterText: '',
-            prefixIcon: const Icon(Icons.lock_rounded, size: 20),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          ),
+          prefixIcon: HugeIcons.strokeRoundedLockPassword,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
 
-        TextField(
+        BizSquareTextField(
+          label: 'Confirm 4-Digit PIN',
+          hintText: '••••',
           controller: _pinConfirmController,
           obscureText: true,
           keyboardType: TextInputType.number,
           maxLength: 4,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: InputDecoration(
-            labelText: 'Confirm 4-Digit PIN',
-            counterText: '',
-            prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          ),
+          prefixIcon: HugeIcons.strokeRoundedCheckmarkBadge01,
         ),
       ],
     );
@@ -1016,32 +1215,56 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
       children: [
         Text(
           'Handle & Interests',
-          style: GoogleFonts.plusJakartaSans(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.8),
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
+            color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+            letterSpacing: -0.6,
+          ),
         ),
         const SizedBox(height: 6),
         Text(
-          'Choose your unique @username and select products/services you want to discover.',
-          style: GoogleFonts.plusJakartaSans(fontSize: 14, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+          'Choose your unique @username and select products you want to discover.',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+          ),
         ),
         const SizedBox(height: 24),
 
-        TextField(
+        BizSquareTextField(
+          label: 'Business Username',
+          hintText: 'e.g. adebayo_stores',
           controller: _usernameController,
           onChanged: _onUsernameChanged,
-          decoration: InputDecoration(
-            labelText: 'Username',
-            hintText: 'e.g. adebayo_stores',
-            prefixText: '@',
-            prefixIcon: const Icon(Icons.alternate_email_rounded, size: 20),
-            suffixIcon: _isCheckingUsername
-                ? const SizedBox(width: 20, height: 20, child: Center(child: BizSquareLoader(size: 16)))
-                : (_isUsernameAvailable == true
-                    ? const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 20)
-                    : (_isUsernameAvailable == false
-                        ? const Icon(Icons.cancel_rounded, color: Color(0xFFFF0055), size: 20)
-                        : null)),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          ),
+          prefixIcon: HugeIcons.strokeRoundedUser,
+          suffix: _isCheckingUsername
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: Center(
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0058FF)),
+                  ),
+                )
+              : (_isUsernameAvailable == true
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: HugeIcon(
+                        icon: HugeIcons.strokeRoundedCheckmarkCircle02,
+                        color: Color(0xFF10B981),
+                        size: 20,
+                      ),
+                    )
+                  : (_isUsernameAvailable == false
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: HugeIcon(
+                            icon: HugeIcons.strokeRoundedCancelCircle,
+                            color: Color(0xFFEF4444),
+                            size: 20,
+                          ),
+                        )
+                      : null)),
         ),
 
         const SizedBox(height: 28),
@@ -1050,19 +1273,30 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'What do you need/buy?',
-              style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w800),
+              'What do you need / buy?',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+              ),
             ),
             Text(
               '${_selectedInterestIds.length} / 5',
-              style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF0058FF)),
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF0058FF),
+              ),
             ),
           ],
         ),
         const SizedBox(height: 4),
         Text(
-          'Select up to 5 business interests (your own supply is excluded to prevent echo chambers).',
-          style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+          'Select up to 5 business interests to tune your weekly contact matches.',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12.5,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+          ),
         ),
         const SizedBox(height: 16),
 
@@ -1070,61 +1304,58 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: categories.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          separatorBuilder: (_, _) => const SizedBox(height: 8),
           itemBuilder: (context, i) {
             final cat = categories[i];
-            final availableNiches = cat.microNiches.where((mn) => !ownNiches.contains(mn.id)).toList();
+            final availableNiches = (cat.microNiches as List)
+                .where((mn) => !ownNiches.contains(mn.id))
+                .toList();
+
             if (availableNiches.isEmpty) return const SizedBox.shrink();
 
             return Container(
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF161E2E) : Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0)),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0),
+                ),
               ),
               child: Theme(
                 data: theme.copyWith(dividerColor: Colors.transparent),
                 child: ExpansionTile(
+                  key: Key('interests_${cat.id}'),
                   title: Text(
                     cat.name,
-                    style: GoogleFonts.plusJakartaSans(fontSize: 14.5, fontWeight: FontWeight.w700),
+                    style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700),
                   ),
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                       child: Wrap(
                         spacing: 8,
                         runSpacing: 8,
                         children: availableNiches.map((mn) {
                           final isSelected = _selectedInterestIds.contains(mn.id);
-                          return FilterChip(
-                            label: Text(mn.name),
-                            selected: isSelected,
-                            onSelected: (selected) {
-                              HapticFeedback.selectionClick();
+                          return _buildNicheKeyTile(
+                            label: mn.name,
+                            isSelected: isSelected,
+                            onTap: () {
                               setState(() {
-                                if (selected) {
+                                if (isSelected) {
+                                  _selectedInterestIds.remove(mn.id);
+                                } else {
                                   if (_selectedInterestIds.length < 5) {
                                     _selectedInterestIds.add(mn.id);
                                   } else {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Maximum 5 interests allowed')),
+                                      const SnackBar(content: Text('Maximum 5 interests allowed.')),
                                     );
                                   }
-                                } else {
-                                  _selectedInterestIds.remove(mn.id);
                                 }
                               });
                             },
-                            selectedColor: const Color(0xFF0058FF),
-                            backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-                            labelStyle: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                              color: isSelected ? Colors.white : (isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155)),
-                            ),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            side: BorderSide.none,
+                            isDark: isDark,
                           );
                         }).toList(),
                       ),

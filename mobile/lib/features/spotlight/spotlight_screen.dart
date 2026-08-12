@@ -6,6 +6,7 @@ import 'package:hugeicons/hugeicons.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/models/spotlight_model.dart';
 import '../../core/providers/spotlight_state_provider.dart';
+import '../../core/widgets/shimmer_loading.dart';
 import 'widgets/spotlight_card.dart';
 
 class SpotlightScreen extends ConsumerStatefulWidget {
@@ -243,26 +244,14 @@ class _SpotlightScreenState extends ConsumerState<SpotlightScreen> {
   }
 
   Widget _buildLoadingSkeleton(bool isDark) {
-    return Column(
-      children: [
-        Container(
-          height: 280,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-            borderRadius: BorderRadius.circular(20),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          height: 140,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-      ],
+    return ShimmerLoading(
+      child: Column(
+        children: const [
+          ShimmerBox(height: 260, width: double.infinity, borderRadius: 20),
+          SizedBox(height: 16),
+          ShimmerBox(height: 140, width: double.infinity, borderRadius: 16),
+        ],
+      ),
     );
   }
 

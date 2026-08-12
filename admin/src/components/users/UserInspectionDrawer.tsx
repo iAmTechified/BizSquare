@@ -173,7 +173,7 @@ export const UserInspectionDrawer: React.FC<UserInspectionDrawerProps> = ({
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-secondary">Network Contacts Count:</span>
-                    <span className="font-bold">{details?.metrics.contacts_count || 0} contacts</span>
+                    <span className="font-bold">{details?.contactGain.contacts_count || 0} contacts</span>
                   </div>
                 </div>
               </div>

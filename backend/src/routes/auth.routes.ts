@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { AuthService } from '../services/auth.service';
 import { authenticateJWT, AuthRequest } from '../middleware/auth.middleware';
+import { pool } from '../db/pool';
 
 const router = Router();
 
@@ -49,6 +50,92 @@ const handleVerifyAndRegister = async (req: Request, res: Response) => {
 
 router.post('/verify-and-register', handleVerifyAndRegister);
 router.post('/verify-code', handleVerifyAndRegister);
+
+/**
+ * POST /api/v1/auth/validate-setup-code
+ * Real-time setup code validation endpoint for mobile app onboarding flow.
+ * Validates setup code against authoritative PostgreSQL database state.
+ * Returns explicit status contract: AVAILABLE, INVALID, EXPIRED, USED, REVOKED.
+ */
+router.post('/validate-setup-code', async (req: Request, res: Response) => {
+  try {
+    const rawCode = req.body.code;
+    if (!rawCode || typeof rawCode !== 'string' || !rawCode.trim()) {
+      return res.status(400).json({
+        valid: false,
+        status: 'INVALID',
+        message: "Please enter a valid setup code.",
+      });
+    }
+
+    const normalizedCode = rawCode.trim().toUpperCase();
+    const DEV_SETUP_CODE = 'B41230';
+
+    if (normalizedCode === DEV_SETUP_CODE) {
+      return res.json({
+        valid: true,
+        status: 'AVAILABLE',
+        message: 'Developer setup code accepted.',
+      });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT id, code, is_used, is_revoked, expires_at, intended_user_id 
+       FROM verification_codes 
+       WHERE code = $1`,
+      [normalizedCode]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        valid: false,
+        status: 'INVALID',
+        message: "That setup code isn't valid.",
+      });
+    }
+
+    const vCode = rows[0];
+
+    if (vCode.is_revoked) {
+      return res.status(400).json({
+        valid: false,
+        status: 'REVOKED',
+        message: 'That setup code is no longer active.',
+      });
+    }
+
+    if (vCode.is_used) {
+      return res.status(400).json({
+        valid: false,
+        status: 'USED',
+        message: 'That setup code has already been used.',
+      });
+    }
+
+    if (new Date(vCode.expires_at) <= new Date()) {
+      return res.status(400).json({
+        valid: false,
+        status: 'EXPIRED',
+        message: 'That setup code has expired. Please request a new one.',
+      });
+    }
+
+    res.json({
+      valid: true,
+      status: 'AVAILABLE',
+      message: 'Setup code is valid.',
+      code: vCode.code,
+      expires_at: vCode.expires_at,
+    });
+  } catch (error: any) {
+    console.error('Error validating setup code:', error);
+    res.status(500).json({
+      valid: false,
+      status: 'SERVER_ERROR',
+      message: 'We couldn\'t verify your code. Check your connection and try again.',
+    });
+  }
+});
 
 /**
  * POST /api/v1/auth/complete-onboarding

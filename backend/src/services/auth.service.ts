@@ -46,7 +46,7 @@ export class AuthService {
 
       if (!isDevCode) {
         const { rows: codeRows } = await client.query(
-          `SELECT id, is_used, expires_at FROM verification_codes WHERE code = $1`,
+          `SELECT id, is_used, is_revoked, expires_at, intended_user_id FROM verification_codes WHERE code = $1`,
           [code.trim().toUpperCase()]
         );
 
@@ -55,6 +55,10 @@ export class AuthService {
         }
 
         const vCode = codeRows[0];
+
+        if (vCode.is_revoked) {
+          throw new Error('CODE_REVOKED');
+        }
 
         if (vCode.is_used) {
           throw new Error('CODE_ALREADY_USED');

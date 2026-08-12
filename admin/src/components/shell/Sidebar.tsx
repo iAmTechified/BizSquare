@@ -2,7 +2,7 @@ import React from 'react';
 import { Hugeicon, HugeiconName } from '../common/Hugeicon';
 import { AdminUser } from '../../api/adminAuthApi';
 
-export type AdminRoute = 'overview' | 'users' | 'notifications' | 'system' | 'audit';
+export type AdminRoute = 'overview' | 'users' | 'setup_codes' | 'notifications' | 'system' | 'audit';
 
 export interface NavItemConfig {
   id: string;
@@ -30,6 +30,7 @@ export const NAVIGATION_GROUPS: NavGroupConfig[] = [
     label: 'OPERATIONS',
     items: [
       { id: 'users', label: 'Users', icon: 'users', route: 'users', enabled: true, requiredPermission: 'users.view' },
+      { id: 'setup_codes', label: 'Setup Codes', icon: 'lock', route: 'setup_codes', enabled: true, requiredPermission: 'system.view' },
       { id: 'contacts', label: 'Contacts & Gain', icon: 'contacts', enabled: false, badge: 'MVP 1.0' },
       { id: 'spotlight', label: 'Spotlight', icon: 'spotlight', enabled: false, badge: 'MVP 1.0' },
     ],

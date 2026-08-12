@@ -26,12 +26,16 @@ import { InterestStateService } from './services/interest_state.service';
 import { RetentionService } from './services/retention.service';
 import { SpotlightNotificationService } from './services/spotlight_notification.service';
 import { migrateV10AdminFoundation } from './db/migrate_v10_admin_foundation';
+import { migrateV12SetupCodes } from './db/migrate_v12_setup_codes';
 
 dotenv.config();
 
 // Run DB migrations
 migrateV10AdminFoundation().catch(err => {
   console.warn('V10 Admin foundation migration warning:', err.message);
+});
+migrateV12SetupCodes().catch(err => {
+  console.warn('V12 Setup Codes migration warning:', err.message);
 });
 
 const app = express();

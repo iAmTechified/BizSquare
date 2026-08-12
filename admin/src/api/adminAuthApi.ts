@@ -218,6 +218,26 @@ export interface UserActivityItem {
   event_source: string;
 }
 
+export interface SetupCodeItem {
+  id: string;
+  code: string;
+  is_used: boolean;
+  used_at: string | null;
+  expires_at: string;
+  created_at: string;
+  is_revoked: boolean;
+  revoked_at: string | null;
+  intended_user_id: string | null;
+  used_by: string | null;
+  created_by: string | null;
+  status: 'AVAILABLE' | 'USED' | 'EXPIRED' | 'REVOKED';
+  intended_user_name?: string | null;
+  intended_user_phone?: string | null;
+  used_by_name?: string | null;
+  used_by_phone?: string | null;
+  created_by_name?: string | null;
+}
+
 export const adminAuthApi = {
   /**
    * Real Admin Authentication
@@ -254,6 +274,60 @@ export const adminAuthApi = {
    */
   async getOverview(range: 'today' | '7d' | '30d' = 'today'): Promise<OverviewData> {
     return adminFetch<OverviewData>(`/admin/overview?range=${range}`);
+  },
+
+  /**
+   * Generates secure setup codes server-side
+   */
+  async generateSetupCodes(payload: { quantity?: number; expires_in_days?: number; intended_user_id?: string } = {}): Promise<{
+    success: boolean;
+    message: string;
+    batch_id: string;
+    codes: Array<{ id: string; code: string; expires_at: string }>;
+  }> {
+    return adminFetch('/admin/setup-codes', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Fetches real setup codes from PostgreSQL with search, filters, sorting, and pagination
+   */
+  async getSetupCodes(params: {
+    search?: string;
+    status?: string;
+    assignment?: string;
+    sort?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<{
+    success: boolean;
+    codes: SetupCodeItem[];
+    total_count: number;
+    limit: number;
+    offset: number;
+    sort: string;
+  }> {
+    const query = new URLSearchParams();
+    if (params.search) query.append('search', params.search);
+    if (params.status) query.append('status', params.status);
+    if (params.assignment) query.append('assignment', params.assignment);
+    if (params.sort) query.append('sort', params.sort);
+    if (params.limit) query.append('limit', params.limit.toString());
+    if (params.offset) query.append('offset', params.offset.toString());
+
+    return adminFetch(`/admin/setup-codes?${query.toString()}`);
+  },
+
+  /**
+   * Revokes an unused setup code
+   */
+  async revokeSetupCode(codeId: string, reason?: string): Promise<{ success: boolean; message: string }> {
+    return adminFetch<{ success: boolean; message: string }>(`/admin/setup-codes/${codeId}/revoke`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
   },
 
   /**

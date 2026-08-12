@@ -361,6 +361,37 @@ export const UserDetailPage: React.FC<UserDetailPageProps> = ({
                 </span>
               </div>
             </div>
+
+            {/* Setup Code Information */}
+            <div
+              style={{
+                marginTop: '1rem',
+                padding: '1rem',
+                background: 'var(--bg-elevated)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border)',
+              }}
+            >
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-bold text-xs flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
+                  <Hugeicon name="lock" size={14} state="active" />
+                  SETUP CODE STATUS
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-xs btn-secondary"
+                  onClick={() => onNavigate('setup_codes')}
+                >
+                  Manage Setup Codes →
+                </button>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-secondary">Onboarding Code Verification:</span>
+                <span className={`badge ${user.onboarding_completed ? 'badge-green' : 'badge-yellow'}`}>
+                  {user.onboarding_completed ? 'Code Verified & Used' : 'Pending Code Entry'}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       )}

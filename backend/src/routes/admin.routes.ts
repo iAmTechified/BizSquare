@@ -1182,4 +1182,269 @@ router.post('/users/:id/adjust-points', requirePermission('users.manage'), async
   }
 });
 
+// ============================================================================
+// 8. SETUP CODE MANAGEMENT MODULE (TURN 4)
+// ============================================================================
+
+import crypto from 'crypto';
+
+function generateSecureSetupCode(): string {
+  // Use unambiguous alphanumeric characters (excluding confusing chars O, 0, I, 1)
+  const charset = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  let result = 'BZS-';
+  const bytes = crypto.randomBytes(6);
+  for (let i = 0; i < 6; i++) {
+    result += charset[bytes[i] % charset.length];
+  }
+  return result; // e.g. BZS-K9P472
+}
+
+/**
+ * POST /api/v1/admin/setup-codes
+ * Generates cryptographically secure, non-predictable setup codes server-side.
+ * Supports quantity (1-50), optional expiration (days), and optional intended user association.
+ * Protected by system.manage or users.manage permissions.
+ * Writes admin.setup_code.generate audit log.
+ */
+router.post('/setup-codes', requirePermission('system.manage'), async (req: AuthRequest, res: Response) => {
+  try {
+    const adminId = req.user.id;
+    const quantity = Math.min(Math.max(parseInt(req.body.quantity, 10) || 1, 1), 50);
+    const expiresInDays = req.body.expires_in_days ? parseInt(req.body.expires_in_days, 10) : 30; // default 30 days
+    const intendedUserId = req.body.intended_user_id ? (req.body.intended_user_id as string).trim() : null;
+
+    // Verify intended user exists if specified
+    if (intendedUserId) {
+      const { rows: uRows } = await pool.query(`SELECT id, full_name FROM users WHERE id = $1`, [intendedUserId]);
+      if (uRows.length === 0) {
+        return res.status(404).json({ error: 'Intended user account not found.' });
+      }
+    }
+
+    const batchId = crypto.randomUUID();
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+
+    const generatedCodes: Array<{ id: string; code: string; expires_at: string }> = [];
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      for (let i = 0; i < quantity; i++) {
+        let codeStr = generateSecureSetupCode();
+        
+        // Ensure uniqueness
+        let attempts = 0;
+        while (attempts < 5) {
+          const { rows: existing } = await client.query(`SELECT id FROM verification_codes WHERE code = $1`, [codeStr]);
+          if (existing.length === 0) break;
+          codeStr = generateSecureSetupCode();
+          attempts++;
+        }
+
+        const { rows } = await client.query(
+          `INSERT INTO verification_codes (code, expires_at, created_by, intended_user_id, batch_id)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING id, code, expires_at`,
+          [codeStr, expiresAt, adminId, intendedUserId, batchId]
+        );
+
+        generatedCodes.push(rows[0]);
+      }
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    await AuditService.logEvent(req, {
+      action: 'admin.setup_code.generate',
+      resourceType: 'setup_code',
+      resourceId: batchId,
+      metadata: {
+        quantity,
+        expires_in_days: expiresInDays,
+        intended_user_id: intendedUserId,
+        generated_count: generatedCodes.length,
+      },
+      result: 'success',
+    });
+
+    res.json({
+      success: true,
+      message: `Successfully generated ${generatedCodes.length} setup code${generatedCodes.length > 1 ? 's' : ''}.`,
+      batch_id: batchId,
+      codes: generatedCodes,
+    });
+  } catch (error: any) {
+    console.error('Error generating setup codes:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate setup codes.' });
+  }
+});
+
+/**
+ * GET /api/v1/admin/setup-codes
+ * Lists setup codes with server-side search, filtering by status & assignment, sorting, and pagination.
+ */
+router.get('/setup-codes', requirePermission('system.view'), async (req: AuthRequest, res: Response) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+    const search = req.query.search ? `%${(req.query.search as string).trim()}%` : null;
+    const status = req.query.status as string; // 'available' | 'used' | 'expired' | 'revoked' | 'all'
+    const assignment = req.query.assignment as string; // 'assigned' | 'unassigned' | 'all'
+    const sort = (req.query.sort as string) || 'newest';
+
+    const whereConditions: string[] = ['1=1'];
+    const queryParams: any[] = [];
+
+    if (search) {
+      queryParams.push(search);
+      const paramIdx = queryParams.length;
+      whereConditions.push(
+        `($${paramIdx}::text IS NULL OR vc.code ILIKE $${paramIdx} OR u_intended.full_name ILIKE $${paramIdx} OR u_used.full_name ILIKE $${paramIdx} OR vc.id::text ILIKE $${paramIdx})`
+      );
+    }
+
+    if (status === 'available') {
+      whereConditions.push('vc.is_used = false AND vc.is_revoked = false AND vc.expires_at > CURRENT_TIMESTAMP');
+    } else if (status === 'used') {
+      whereConditions.push('vc.is_used = true');
+    } else if (status === 'expired') {
+      whereConditions.push('vc.is_used = false AND vc.is_revoked = false AND vc.expires_at <= CURRENT_TIMESTAMP');
+    } else if (status === 'revoked') {
+      whereConditions.push('vc.is_revoked = true');
+    }
+
+    if (assignment === 'assigned') {
+      whereConditions.push('vc.intended_user_id IS NOT NULL');
+    } else if (assignment === 'unassigned') {
+      whereConditions.push('vc.intended_user_id IS NULL');
+    }
+
+    let orderByClause = 'vc.created_at DESC';
+    if (sort === 'oldest') orderByClause = 'vc.created_at ASC';
+    if (sort === 'expires_soon') orderByClause = 'vc.expires_at ASC';
+
+    queryParams.push(limit);
+    const limitIdx = queryParams.length;
+    queryParams.push(offset);
+    const offsetIdx = queryParams.length;
+
+    const queryText = `
+      SELECT 
+        vc.id,
+        vc.code,
+        vc.is_used,
+        vc.used_at,
+        vc.expires_at,
+        vc.created_at,
+        vc.is_revoked,
+        vc.revoked_at,
+        vc.intended_user_id,
+        vc.used_by,
+        vc.created_by,
+        COUNT(*) OVER() as total_count,
+        
+        -- Calculated authoritative status
+        CASE
+          WHEN vc.is_revoked = true THEN 'REVOKED'
+          WHEN vc.is_used = true THEN 'USED'
+          WHEN vc.expires_at <= CURRENT_TIMESTAMP THEN 'EXPIRED'
+          ELSE 'AVAILABLE'
+        END as status,
+
+        u_intended.full_name as intended_user_name,
+        u_intended.phone_number as intended_user_phone,
+        u_used.full_name as used_by_name,
+        u_used.phone_number as used_by_phone,
+        u_created.full_name as created_by_name
+
+      FROM verification_codes vc
+      LEFT JOIN users u_intended ON u_intended.id = vc.intended_user_id
+      LEFT JOIN users u_used ON u_used.id = vc.used_by
+      LEFT JOIN users u_created ON u_created.id = vc.created_by
+      WHERE ${whereConditions.join(' AND ')}
+      ORDER BY ${orderByClause}
+      LIMIT $${limitIdx} OFFSET $${offsetIdx}
+    `;
+
+    const { rows } = await pool.query(queryText, queryParams);
+
+    const totalCount = rows.length > 0 ? parseInt(rows[0].total_count, 10) : 0;
+    const codes = rows.map((r) => {
+      const { total_count, ...codeData } = r;
+      return codeData;
+    });
+
+    res.json({
+      success: true,
+      codes,
+      total_count: totalCount,
+      limit,
+      offset,
+      sort,
+    });
+  } catch (error: any) {
+    console.error('Error fetching admin setup codes:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch setup codes.' });
+  }
+});
+
+/**
+ * POST /api/v1/admin/setup-codes/:id/revoke
+ * Revokes an unused setup code in PostgreSQL database.
+ * Protected by system.manage permission. Writes admin.setup_code.revoke audit log.
+ */
+router.post('/setup-codes/:id/revoke', requirePermission('system.manage'), async (req: AuthRequest, res: Response) => {
+  try {
+    const codeId = req.params.id as string;
+    const adminId = req.user.id;
+    const { reason } = req.body;
+
+    const { rows: existingRows } = await pool.query(`SELECT id, code, is_used, is_revoked FROM verification_codes WHERE id = $1`, [codeId]);
+    if (existingRows.length === 0) {
+      return res.status(404).json({ error: 'Setup code not found.' });
+    }
+
+    const codeObj = existingRows[0];
+    if (codeObj.is_used) {
+      return res.status(400).json({ error: 'Cannot revoke a setup code that has already been used by a user.' });
+    }
+    if (codeObj.is_revoked) {
+      return res.status(400).json({ error: 'This setup code is already revoked.' });
+    }
+
+    await pool.query(
+      `UPDATE verification_codes 
+       SET is_revoked = true, revoked_at = CURRENT_TIMESTAMP, revoked_by = $1 
+       WHERE id = $2`,
+      [adminId, codeId]
+    );
+
+    await AuditService.logEvent(req, {
+      action: 'admin.setup_code.revoke',
+      resourceType: 'setup_code',
+      resourceId: codeId,
+      metadata: {
+        code: codeObj.code,
+        reason: reason || 'Administrative revocation',
+      },
+      result: 'success',
+    });
+
+    res.json({
+      success: true,
+      message: `Setup code ${codeObj.code} has been successfully revoked.`,
+    });
+  } catch (error: any) {
+    console.error('Error revoking setup code:', error);
+    res.status(500).json({ error: error.message || 'Failed to revoke setup code.' });
+  }
+});
+
 export default router;

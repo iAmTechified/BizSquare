@@ -28,7 +28,7 @@ class _SpotlightHomeCardState extends ConsumerState<SpotlightHomeCard> {
     setState(() => _isSharing = true);
     try {
       final text = '${spotlight.content?.promoText ?? "Check out our featured partner on BizSquare!"}\n\n${spotlight.content?.caption ?? "#GrowTogether #BizSquare"}';
-      await Share.share(text, subject: spotlight.content?.title ?? 'BizSquare Spotlight');
+      await SharePlus.instance.share(ShareParams(text: text, subject: spotlight.content?.title ?? 'BizSquare Spotlight'));
       await ref.read(homeStateProvider.notifier).participateInCurrentSpotlight();
     } catch (_) {}
     if (mounted) setState(() => _isSharing = false);

@@ -24,6 +24,7 @@ import { MatchingEngineService } from './services/matching/matching_engine.servi
 import { DemandService } from './services/demand.service';
 import { InterestStateService } from './services/interest_state.service';
 import { RetentionService } from './services/retention.service';
+import { SpotlightNotificationService } from './services/spotlight_notification.service';
 import { migrateV10AdminFoundation } from './db/migrate_v10_admin_foundation';
 
 dotenv.config();
@@ -111,6 +112,19 @@ cron.schedule('0 9 * * *', async () => {
     console.log('Retention Check complete:', result);
   } catch (error) {
     console.error('Retention Check failed:', error);
+  }
+}, {
+  timezone: "UTC"
+});
+
+// CRON: Spotlight Unfulfilled Turn Reminder Check (Every 2 hours)
+cron.schedule('0 */2 * * *', async () => {
+  console.log('Running Spotlight Reminder Check...');
+  try {
+    const result = await SpotlightNotificationService.runSpotlightReminderCheck();
+    console.log('Spotlight Reminder Check complete:', result);
+  } catch (error) {
+    console.error('Spotlight Reminder Check failed:', error);
   }
 }, {
   timezone: "UTC"

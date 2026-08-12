@@ -63,7 +63,7 @@ class _SpotlightScreenState extends ConsumerState<SpotlightScreen> {
     setState(() => _isSharing = true);
     try {
       final text = '${spotlight.content?.promoText ?? "Check out our featured verified partner on BizSquare!"}\n\n${spotlight.content?.caption ?? "#GrowTogether #BizSquare"}';
-      await Share.share(text, subject: spotlight.content?.title ?? 'BizSquare Spotlight');
+      await SharePlus.instance.share(ShareParams(text: text, subject: spotlight.content?.title ?? 'BizSquare Spotlight'));
       await ref.read(spotlightStateProvider.notifier).participateInCurrentSpotlight();
     } catch (_) {}
     if (mounted) setState(() => _isSharing = false);

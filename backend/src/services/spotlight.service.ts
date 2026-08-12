@@ -1,5 +1,6 @@
 import { pool } from '../db/pool';
 import { NotificationService, NotificationEvents } from './notification.service';
+import { SpotlightNotificationService } from './spotlight_notification.service';
 
 export interface SpotlightRequirement {
   prompt: string;
@@ -299,6 +300,13 @@ export class SpotlightService {
 
       await client.query('COMMIT');
 
+      // Cancel all outstanding reminders for this turn (Section 5 & 11)
+      setImmediate(async () => {
+        try {
+          await SpotlightNotificationService.cancelRemindersForTurn(userId, campaignId);
+        } catch (_) {}
+      });
+
       // Create in-app event notification
       try {
         await NotificationService.createNotification({
@@ -352,7 +360,29 @@ export class SpotlightService {
         VALUES ($1, 2, 'spotlight_share', TRUE)
       `, [userId]);
 
+      // Fetch campaign owner details to trigger participation batching notification (Section 7 & 8)
+      const { rows: [camp] } = await client.query(`
+        SELECT sc.user_id as target_user_id, u.full_name as actor_name
+        FROM spotlight_campaigns sc
+        JOIN users u ON u.id = $1
+        WHERE sc.id = $2
+      `, [userId, campaignId]);
+
       await client.query('COMMIT');
+
+      if (camp) {
+        setImmediate(async () => {
+          try {
+            await SpotlightNotificationService.recordParticipationAndBatch({
+              targetUserId: camp.target_user_id,
+              actorUserId: userId,
+              actorName: camp.actor_name || 'A network member',
+              campaignId,
+            });
+          } catch (_) {}
+        });
+      }
+
       return { success: true, message: 'Participation verified! +2 Akawo Points awarded.', pointsAwarded: 2 };
     } catch (err) {
       await client.query('ROLLBACK');

@@ -7,6 +7,7 @@ import { AdminRoute } from './components/shell/Sidebar';
 import { OverviewPage } from './pages/OverviewPage';
 import { UserManagementPage } from './pages/UserManagementPage';
 import { UserDetailPage } from './pages/UserDetailPage';
+import { SetupCodesPage } from './pages/SetupCodesPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { SystemHealthPage } from './pages/SystemHealthPage';
 import { AuditLogPage } from './pages/AuditLogPage';
@@ -64,6 +65,7 @@ function MainAppContent() {
   const routeMeta: Record<AdminRoute, { title: string; breadcrumb: string; permission?: string }> = {
     overview: { title: 'Admin Overview', breadcrumb: 'Overview' },
     users: { title: selectedUserId ? 'User Profile Inspection' : 'Users', breadcrumb: 'Users', permission: 'users.view' },
+    setup_codes: { title: 'Setup Codes', breadcrumb: 'Setup Codes', permission: 'system.view' },
     notifications: { title: 'Notification Composer & Broadcasts', breadcrumb: 'Notifications' },
     system: { title: 'System Health & Monitoring', breadcrumb: 'System Health', permission: 'system.view' },
     audit: { title: 'Administrative Audit Log', breadcrumb: 'Audit Log', permission: 'audit.view' },
@@ -119,6 +121,7 @@ function MainAppContent() {
           onBack={() => setSelectedUserId(null)}
         />
       )}
+      {currentRoute === 'setup_codes' && <SetupCodesPage />}
       {currentRoute === 'notifications' && <NotificationsPage />}
       {currentRoute === 'system' && <SystemHealthPage />}
       {currentRoute === 'audit' && <AuditLogPage />}

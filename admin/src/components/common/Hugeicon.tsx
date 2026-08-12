@@ -27,7 +27,13 @@ export type HugeiconName =
   | 'lock'
   | 'refresh'
   | 'filter'
-  | 'shield';
+  | 'shield'
+  | 'media'
+  | 'send'
+  | 'schedule'
+  | 'history'
+  | 'file'
+  | 'mobile';
 
 export type HugeiconVariant = 'outline' | 'filled' | 'strong' | 'muted' | 'disabled';
 export type HugeiconState = 'default' | 'active' | 'success' | 'warning' | 'error' | 'disabled';
@@ -301,6 +307,50 @@ export const Hugeicon: React.FC<HugeiconProps> = ({
 
       case 'shield':
         return <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="currentColor" strokeWidth={strokeWidth} strokeLinejoin="round" fill={fill} />;
+
+      case 'media':
+        return (
+          <>
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke="currentColor" strokeWidth={strokeWidth} fill={fill} />
+            <circle cx="8.5" cy="8.5" r="1.5" stroke="currentColor" strokeWidth={strokeWidth} />
+            <polyline points="21 15 16 10 5 21" stroke="currentColor" strokeWidth={strokeWidth} strokeLinejoin="round" />
+          </>
+        );
+
+      case 'send':
+        return <line x1="22" y1="2" x2="11" y2="13" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />;
+
+      case 'schedule':
+        return (
+          <>
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={strokeWidth} fill={fill} />
+            <polyline points="12 6 12 12 16 14" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+          </>
+        );
+
+      case 'history':
+        return (
+          <>
+            <path d="M1 4v6h6" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+          </>
+        );
+
+      case 'file':
+        return (
+          <>
+            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" stroke="currentColor" strokeWidth={strokeWidth} fill={fill} />
+            <polyline points="13 2 13 9 20 9" stroke="currentColor" strokeWidth={strokeWidth} strokeLinejoin="round" />
+          </>
+        );
+
+      case 'mobile':
+        return (
+          <>
+            <rect x="5" y="2" width="14" height="20" rx="2" ry="2" stroke="currentColor" strokeWidth={strokeWidth} fill={fill} />
+            <line x1="12" y1="18" x2="12.01" y2="18" stroke="currentColor" strokeWidth={strokeWidth + 0.5} strokeLinecap="round" />
+          </>
+        );
 
       default:
         return <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={strokeWidth} />;

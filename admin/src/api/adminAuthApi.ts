@@ -275,6 +275,7 @@ export interface UpcomingSpotlightUser {
   primary_offer: string;
   last_spotlight_at?: string | null;
   eligibility_status?: string;
+  is_currently_active?: boolean;
 }
 
 export interface ContactGainCycleItem {

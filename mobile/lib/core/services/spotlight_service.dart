@@ -13,7 +13,7 @@ class SpotlightService {
 
   SpotlightService(this._api);
 
-  /// Fetches the active Spotlight campaign and turn status
+  /// Fetches the server-authoritative active Spotlight campaign and turn status
   Future<SpotlightCurrentModel> getCurrentSpotlight() async {
     try {
       final response = await _api.dio.get('/spotlight/current');
@@ -25,12 +25,71 @@ class SpotlightService {
     }
     return const SpotlightCurrentModel(
       isMyTurn: false,
+      cycleStartDate: '',
+      cycleEndDate: '',
       targetParticipants: 48,
       participantCount: 0,
       hasParticipated: false,
-      startDate: '',
-      endDate: '',
     );
+  }
+
+  /// Submits Spotlight campaign (idempotent)
+  Future<({bool success, String? campaignId, String? submissionStatus, String message})> submitSpotlight({
+    required String title,
+    required String promoText,
+    required String caption,
+    String? flyerUrl,
+    String? idempotencyKey,
+  }) async {
+    try {
+      final response = await _api.dio.post(
+        '/spotlight/submit',
+        data: {
+          'title': title,
+          'promoText': promoText,
+          'caption': caption,
+          'flyerUrl': flyerUrl,
+          'idempotencyKey': idempotencyKey,
+        },
+      );
+      if (response.data != null && response.data['success'] == true) {
+        return (
+          success: true,
+          campaignId: response.data['campaignId'] as String?,
+          submissionStatus: response.data['submissionStatus'] as String?,
+          message: response.data['message'] as String? ?? 'Spotlight submitted successfully',
+        );
+      }
+      return (
+        success: false,
+        campaignId: null,
+        submissionStatus: null,
+        message: response.data?['error'] as String? ?? 'Failed to submit Spotlight',
+      );
+    } on DioException catch (e) {
+      return (
+        success: false,
+        campaignId: null,
+        submissionStatus: null,
+        message: e.response?.data?['error'] as String? ?? 'Network error submitting Spotlight',
+      );
+    }
+  }
+
+  /// Sets content for user's own Spotlight campaign (alias for submitSpotlight)
+  Future<bool> setMyContent({
+    required String title,
+    required String promoText,
+    required String caption,
+    String? flyerUrl,
+  }) async {
+    final res = await submitSpotlight(
+      title: title,
+      promoText: promoText,
+      caption: caption,
+      flyerUrl: flyerUrl,
+    );
+    return res.success;
   }
 
   /// Records user participation (shared to WhatsApp status)
@@ -46,27 +105,16 @@ class SpotlightService {
     }
   }
 
-  /// Sets content for user's own Spotlight campaign
-  Future<bool> setMyContent({
-    required String title,
-    required String promoText,
-    required String caption,
-    String? flyerUrl,
-  }) async {
+  /// Fetches list of authorized participants for a campaign
+  Future<List<SpotlightParticipantModel>> getCampaignParticipants(String campaignId) async {
     try {
-      final response = await _api.dio.post(
-        '/spotlight/my-content',
-        data: {
-          'title': title,
-          'promoText': promoText,
-          'caption': caption,
-          'flyerUrl': flyerUrl,
-        },
-      );
-      return response.data != null && response.data['success'] == true;
-    } catch (_) {
-      return false;
-    }
+      final response = await _api.dio.get('/spotlight/campaign/$campaignId/participants');
+      if (response.data != null && response.data['data'] != null) {
+        final list = response.data['data'] as List<dynamic>;
+        return list.map((e) => SpotlightParticipantModel.fromJson(e as Map<String, dynamic>)).toList();
+      }
+    } catch (_) {}
+    return [];
   }
 
   /// Fetches Spotlight History (Mine & Others)

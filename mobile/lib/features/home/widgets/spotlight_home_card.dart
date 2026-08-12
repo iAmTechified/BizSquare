@@ -145,7 +145,7 @@ class _SpotlightHomeCardState extends ConsumerState<SpotlightHomeCard> {
               width: double.infinity,
               height: 46,
               child: ElevatedButton(
-                onPressed: () => context.push('/spotlight/edit-content'),
+                onPressed: () => context.go('/spotlight'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0058FF),
                   foregroundColor: Colors.white,

@@ -269,8 +269,8 @@ void main() {
         targetParticipants: 48,
         participantCount: 5,
         hasParticipated: false,
-        startDate: '2026-08-11',
-        endDate: '2026-08-18',
+        cycleStartDate: '2026-08-11',
+        cycleEndDate: '2026-08-18',
       );
 
       await tester.pumpWidget(

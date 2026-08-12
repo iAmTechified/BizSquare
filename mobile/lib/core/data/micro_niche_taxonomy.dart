@@ -235,6 +235,14 @@ class MicroNicheTaxonomy {
     return null;
   }
 
+  static List<MicroNiche> searchMicroNiches(String query) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return getAllMicroNiches();
+    return getAllMicroNiches()
+        .where((mn) => mn.name.toLowerCase().contains(q))
+        .toList();
+  }
+
   static Category? findCategoryForMicroNiche(String microNicheId) {
     for (final cat in categories) {
       for (final mn in cat.microNiches) {

@@ -171,6 +171,13 @@ class UserStateNotifier extends StateNotifier<UserState> {
     state = state.copyWith(completedDailyWallToday: true);
   }
 
+  void updateProfileInfo({String? businessName, int? avatarId}) {
+    state = state.copyWith(
+      businessName: businessName ?? state.businessName,
+      avatarId: avatarId ?? state.avatarId,
+    );
+  }
+
   Future<void> login({
     required String token,
     required Map<String, dynamic> user,

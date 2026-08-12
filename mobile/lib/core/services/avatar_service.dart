@@ -169,6 +169,12 @@ class AvatarService {
     return critters[safeIndex];
   }
 
+  static int getIndexForCritter(CritterAvatar critter) {
+    final critters = AvatarService().getLocalCritters();
+    final idx = critters.indexWhere((c) => c.id == critter.id);
+    return idx != -1 ? idx + 1 : 1;
+  }
+
   List<CritterAvatar> getLocalCritters() {
     return const [
       CritterAvatar(

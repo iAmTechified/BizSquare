@@ -14,6 +14,7 @@ class BizSquareTextField extends StatelessWidget {
   final List<TextInputFormatter>? inputFormatters;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
+  final FormFieldValidator<String>? validator;
   final String? errorText;
   final String? helperText;
   final int maxLines;
@@ -34,6 +35,7 @@ class BizSquareTextField extends StatelessWidget {
     this.inputFormatters,
     this.onChanged,
     this.onSubmitted,
+    this.validator,
     this.errorText,
     this.helperText,
     this.maxLines = 1,
@@ -65,7 +67,7 @@ class BizSquareTextField extends StatelessWidget {
         const SizedBox(height: 8),
 
         // 2. Input Field Container
-        TextField(
+        TextFormField(
           controller: controller,
           focusNode: focusNode,
           autofocus: autofocus,
@@ -74,7 +76,8 @@ class BizSquareTextField extends StatelessWidget {
           keyboardType: keyboardType,
           inputFormatters: inputFormatters,
           onChanged: onChanged,
-          onSubmitted: onSubmitted,
+          onFieldSubmitted: onSubmitted,
+          validator: validator,
           maxLines: maxLines,
           maxLength: maxLength,
           style: GoogleFonts.plusJakartaSans(
@@ -118,17 +121,10 @@ class BizSquareTextField extends StatelessWidget {
               fontSize: 11,
               color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
             ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(
-                color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                width: 1.2,
-              ),
-            ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide(
-                color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                color: isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0),
                 width: 1.2,
               ),
             ),
@@ -143,7 +139,21 @@ class BizSquareTextField extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
               borderSide: const BorderSide(
                 color: Color(0xFFEF4444),
-                width: 1.5,
+                width: 1.2,
+              ),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(
+                color: Color(0xFFEF4444),
+                width: 1.8,
+              ),
+            ),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                width: 1.0,
               ),
             ),
           ),

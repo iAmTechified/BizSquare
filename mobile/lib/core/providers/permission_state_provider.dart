@@ -14,6 +14,10 @@ class PermissionState {
     this.isNotificationGranted = false,
   });
 
+  bool get contactsGranted => isContactsGranted;
+  bool get notificationsGranted => isNotificationGranted;
+  bool get contactsPermanentlyDenied => isContactsPermanentlyDenied;
+
   PermissionState copyWith({
     bool? isContactsGranted,
     bool? isContactsDenied,

@@ -199,7 +199,7 @@ void main() {
         ),
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 600));
 
       expect(find.text('Spotlight'), findsOneWidget);
       expect(find.text('Your weekly visibility'), findsOneWidget);
@@ -216,7 +216,7 @@ void main() {
         ),
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 600));
 
       expect(find.text('Spotlight History'), findsOneWidget);
       expect(find.text('Mine'), findsOneWidget);

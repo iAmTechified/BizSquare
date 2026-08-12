@@ -45,19 +45,19 @@ class SetupProgressBanner extends ConsumerWidget {
       description = 'Tell the network who you are and what you offer to start gaining contacts.';
       buttonText = 'Complete profile';
       icon = HugeIcons.strokeRoundedUser;
-      onAction = () => context.push('/register-steps');
+      onAction = () => context.push('/profile/edit');
     } else if (!primaryOfferSet) {
       title = 'Set your main offer';
       description = 'Define your primary micro-niche so we can connect you with relevant partners.';
       buttonText = 'Set primary offer';
       icon = HugeIcons.strokeRoundedTarget01;
-      onAction = () => context.push('/register-steps');
+      onAction = () => context.push('/profile/offers');
     } else if (!interestsSet) {
       title = 'Tell us what interests you';
       description = 'Select your supply categories to tailor the new contacts you receive weekly.';
       buttonText = 'Add interests';
       icon = HugeIcons.strokeRoundedSparkles;
-      onAction = () => context.push('/my-interests');
+      onAction = () => context.push('/profile/interests');
     } else if (!contactsPermissionGranted) {
       title = 'Allow contact access';
       description = 'We need contact access to automatically sync your Square Contacts into your phone address book.';

@@ -7,14 +7,28 @@ import 'animated_critter_avatar.dart';
 import 'bizsquare_loader.dart';
 
 class AvatarPickerSheet extends ConsumerStatefulWidget {
-  const AvatarPickerSheet({super.key});
+  final int? currentAvatarId;
+  final ValueChanged<int>? onAvatarSelected;
 
-  static Future<void> show(BuildContext context) {
+  const AvatarPickerSheet({
+    super.key,
+    this.currentAvatarId,
+    this.onAvatarSelected,
+  });
+
+  static Future<void> show(
+    BuildContext context, {
+    int? currentAvatarId,
+    ValueChanged<int>? onAvatarSelected,
+  }) {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => const AvatarPickerSheet(),
+      builder: (_) => AvatarPickerSheet(
+        currentAvatarId: currentAvatarId,
+        onAvatarSelected: onAvatarSelected,
+      ),
     );
   }
 
@@ -603,6 +617,9 @@ class _AvatarPickerSheetState extends ConsumerState<AvatarPickerSheet>
 
     if (_previewAvatar!.isLocal) {
       await notifier.selectLocalAvatar(_previewAvatar!);
+      if (widget.onAvatarSelected != null) {
+        widget.onAvatarSelected!(AvatarService.getIndexForCritter(_previewAvatar!));
+      }
       if (mounted) Navigator.pop(context);
     } else if (_previewAvatar!.onlineUrl != null) {
       final success = await notifier.selectAndCacheOnlineAvatar(
@@ -613,6 +630,9 @@ class _AvatarPickerSheetState extends ConsumerState<AvatarPickerSheet>
 
       if (mounted) {
         if (success) {
+          if (widget.onAvatarSelected != null) {
+            widget.onAvatarSelected!(AvatarService.getIndexForCritter(_previewAvatar!));
+          }
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(

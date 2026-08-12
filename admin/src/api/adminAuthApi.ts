@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:8080/api/v1';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8080/api/v1';
 
 export interface AdminUser {
   id: string;
@@ -403,6 +403,27 @@ export interface SentNotificationItem {
   opened_count: number;
 }
 
+export interface MediaRecordItem {
+  id: string;
+  owner_id: string;
+  source: string;
+  media_type: 'IMAGE' | 'VIDEO';
+  mime_type: string;
+  file_size: number;
+  original_filename?: string | null;
+  storage_key: string;
+  thumbnail_key?: string | null;
+  width?: number | null;
+  height?: number | null;
+  duration_seconds?: number | null;
+  status: 'UPLOADING' | 'UPLOADED' | 'PROCESSING' | 'READY' | 'REJECTED' | 'DELETED' | 'FAILED';
+  processing_status: 'PENDING' | 'COMPLETED' | 'FAILED';
+  moderation_status: 'PENDING_REVIEW' | 'PASSED' | 'FLAGGED' | 'REJECTED';
+  moderation_reason?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export const adminAuthApi = {
   /**
    * Real Admin Authentication
@@ -439,6 +460,68 @@ export const adminAuthApi = {
    */
   async getOverview(range: 'today' | '7d' | '30d' = 'today'): Promise<OverviewData> {
     return adminFetch<OverviewData>(`/admin/overview?range=${range}`);
+  },
+
+  /**
+   * Media Pipeline: Create Upload Session
+   */
+  async createMediaUploadSession(payload: {
+    mediaType: 'IMAGE' | 'VIDEO';
+    mimeType: string;
+    fileSize: number;
+    originalFilename?: string;
+  }): Promise<{
+    success: boolean;
+    session: {
+      mediaId: string;
+      storageKey: string;
+      uploadUrl: string;
+      maxFileSize: number;
+      allowedMimeTypes: string[];
+    };
+  }> {
+    return adminFetch('/media/upload-session', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Media Pipeline: Complete Upload
+   */
+  async completeMediaUpload(
+    mediaId: string,
+    metadata: { width?: number; height?: number; durationSeconds?: number } = {}
+  ): Promise<{ success: boolean; message: string; media: MediaRecordItem }> {
+    return adminFetch(`/media/${mediaId}/complete`, {
+      method: 'POST',
+      body: JSON.stringify(metadata),
+    });
+  },
+
+  /**
+   * Media Pipeline: Get Media Record
+   */
+  async getMediaRecord(mediaId: string): Promise<{ success: boolean; media: MediaRecordItem }> {
+    return adminFetch(`/media/${mediaId}`);
+  },
+
+  /**
+   * Media Pipeline: Retry Processing
+   */
+  async retryMediaProcessing(mediaId: string): Promise<{ success: boolean; message: string; media: MediaRecordItem }> {
+    return adminFetch(`/media/${mediaId}/retry`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Media Pipeline: Soft Delete
+   */
+  async deleteMediaRecord(mediaId: string): Promise<{ success: boolean; message: string }> {
+    return adminFetch(`/media/${mediaId}`, {
+      method: 'DELETE',
+    });
   },
 
   /**

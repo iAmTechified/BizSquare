@@ -13,6 +13,7 @@ import { GlobalEmptyState } from '../components/common/GlobalEmptyState';
 import { Hugeicon } from '../components/common/Hugeicon';
 import { SpotlightOverrideModal } from '../components/spotlight/SpotlightOverrideModal';
 import { DisapproveSubmissionModal } from '../components/spotlight/DisapproveSubmissionModal';
+import { MediaInspectionCard } from '../components/media/MediaInspectionCard';
 
 export const SpotlightPage: React.FC = () => {
   const { hasPermission } = useAdminAuth();
@@ -464,16 +465,8 @@ export const SpotlightPage: React.FC = () => {
                     <p className="text-sm text-primary mb-2">{sub.promo_text}</p>
                     {sub.caption && <p className="text-xs text-secondary italic mb-2">&quot;{sub.caption}&quot;</p>}
 
-                    {sub.flyer_url && (
-                      <div className="mt-3">
-                        <div className="text-xs text-secondary font-bold mb-1">Attached Media / Flyer:</div>
-                        <img
-                          src={sub.flyer_url}
-                          alt="Spotlight Flyer Preview"
-                          style={{ maxHeight: 200, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
-                        />
-                      </div>
-                    )}
+                    {/* Media Pipeline Component */}
+                    <MediaInspectionCard mediaUrl={sub.flyer_url} onRefresh={fetchSpotlightData} />
                   </div>
 
                   {/* Actions */}

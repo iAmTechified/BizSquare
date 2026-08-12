@@ -2639,13 +2639,13 @@ router.post('/notifications/send', requirePermission('notifications.send'), asyn
         if (insertedNotif.length > 0 && !isScheduled) {
           sentCount++;
           // Trigger FCM push notification asynchronously
-          PushService.sendPushToUser(targetUser.id, {
-            title: userTitle,
-            body: userBody,
-            data: {
-              notificationId: insertedNotif[0].id,
-              actionUrl: dest,
-              category: category || 'ANNOUNCEMENT',
+          PushService.sendToUser({
+            userId: targetUser.id,
+            notificationId: insertedNotif[0].id,
+            payload: {
+              title: userTitle,
+              body: userBody,
+              deepLink: dest,
             },
           }).catch((err) => console.warn('Push delivery warning:', err.message));
         }

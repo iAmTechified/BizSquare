@@ -29,6 +29,7 @@ import { migrateV10AdminFoundation } from './db/migrate_v10_admin_foundation';
 import { migrateV12SetupCodes } from './db/migrate_v12_setup_codes';
 import { migrateV13SpotlightOps } from './db/migrate_v13_spotlight_ops';
 import { migrateV14Notifications } from './db/migrate_v14_notifications';
+import { migrateV15MediaPipeline } from './db/migrate_v15_media_pipeline';
 
 dotenv.config();
 
@@ -45,6 +46,9 @@ migrateV13SpotlightOps().catch(err => {
 migrateV14Notifications().catch(err => {
   console.warn('V14 Notifications migration warning:', err.message);
 });
+migrateV15MediaPipeline().catch(err => {
+  console.warn('V15 Media Pipeline migration warning:', err.message);
+});
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -52,6 +56,8 @@ const port = process.env.PORT || 8080;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+import mediaRoutes from './routes/media.routes';
 
 // Routes Registration
 app.use('/api/v1/auth', authRoutes);
@@ -63,6 +69,7 @@ app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/admin/content-engine', adminContentRoutes);
 app.use('/api/v1/matching', matchingRoutes);
 app.use('/api/v1/spotlight', spotlightRoutes);
+app.use('/api/v1/media', mediaRoutes);
 app.use('/api/v1/notifications', notificationsRoutes);
 app.use('/api/v1/contacts', contactsRoutes);
 app.use('/api/v1/crm', crmRoutes);

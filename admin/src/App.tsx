@@ -5,6 +5,8 @@ import { AdminAuthProvider, useAdminAuth } from './context/AdminAuthContext';
 import { AdminShell } from './components/shell/AdminShell';
 import { AdminRoute } from './components/shell/Sidebar';
 import { OverviewPage } from './pages/OverviewPage';
+import { UserManagementPage } from './pages/UserManagementPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 import { SystemHealthPage } from './pages/SystemHealthPage';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { LoginPage } from './pages/LoginPage';
@@ -54,6 +56,8 @@ function MainAppContent() {
   // Route metadata mapping
   const routeMeta: Record<AdminRoute, { title: string; breadcrumb: string; permission?: string }> = {
     overview: { title: 'Admin Overview', breadcrumb: 'Overview' },
+    users: { title: 'User Registry & Account Management', breadcrumb: 'Users', permission: 'users.view' },
+    notifications: { title: 'Notification Composer & Broadcasts', breadcrumb: 'Notifications' },
     system: { title: 'System Health & Monitoring', breadcrumb: 'System Health', permission: 'system.view' },
     audit: { title: 'Administrative Audit Log', breadcrumb: 'Audit Log', permission: 'audit.view' },
   };
@@ -93,6 +97,8 @@ function MainAppContent() {
       breadcrumbItems={breadcrumbs}
     >
       {currentRoute === 'overview' && <OverviewPage onNavigate={setCurrentRoute} />}
+      {currentRoute === 'users' && <UserManagementPage />}
+      {currentRoute === 'notifications' && <NotificationsPage />}
       {currentRoute === 'system' && <SystemHealthPage />}
       {currentRoute === 'audit' && <AuditLogPage />}
     </AdminShell>

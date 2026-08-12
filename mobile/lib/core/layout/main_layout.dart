@@ -1,14 +1,42 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
+import '../widgets/dynamic_app_launch_prompt_sheet.dart';
 
-class MainLayout extends StatelessWidget {
+class MainLayout extends ConsumerStatefulWidget {
   final StatefulNavigationShell navigationShell;
 
   const MainLayout({super.key, required this.navigationShell});
+
+  @override
+  ConsumerState<MainLayout> createState() => _MainLayoutState();
+}
+
+class _MainLayoutState extends ConsumerState<MainLayout> {
+  bool _checkedLaunchPrompt = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _triggerLaunchPromptCheck();
+    });
+  }
+
+  Future<void> _triggerLaunchPromptCheck() async {
+    if (_checkedLaunchPrompt) return;
+    _checkedLaunchPrompt = true;
+
+    // Small initial delay so home screen mounts cleanly first
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (mounted) {
+      await DynamicAppLaunchPromptSheet.checkAndPromptIfNeeded(context, ref);
+    }
+  }
 
   static const List<_TabConfig> _tabs = [
     _TabConfig(
@@ -37,11 +65,11 @@ class MainLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final currentIndex = navigationShell.currentIndex;
+    final currentIndex = widget.navigationShell.currentIndex;
 
     return Scaffold(
       extendBody: true,
-      body: navigationShell,
+      body: widget.navigationShell,
       bottomNavigationBar: SafeArea(
         bottom: true,
         child: Container(
@@ -103,7 +131,7 @@ class MainLayout extends StatelessWidget {
                         child: InkWell(
                           onTap: () {
                             HapticFeedback.selectionClick();
-                            navigationShell.goBranch(
+                            widget.navigationShell.goBranch(
                               index,
                               initialLocation: index == currentIndex,
                             );

@@ -148,10 +148,24 @@ class AvatarService {
 
   AvatarService([Dio? dio])
       : _dio = dio ??
-            Dio(BaseOptions(
-              connectTimeout: const Duration(seconds: 8),
-              receiveTimeout: const Duration(seconds: 12),
-            ));
+            (() {
+              final d = Dio(BaseOptions(
+                connectTimeout: const Duration(seconds: 8),
+                receiveTimeout: const Duration(seconds: 12),
+              ));
+              d.interceptors.add(
+                LogInterceptor(
+                  request: true,
+                  requestHeader: true,
+                  requestBody: true,
+                  responseHeader: false,
+                  responseBody: true,
+                  error: true,
+                  logPrint: (obj) => debugPrint('[DIO] $obj'),
+                ),
+              );
+              return d;
+            })();
 
   static CritterAvatar getAvatarByIndex(int index) {
     final critters = AvatarService().getLocalCritters();

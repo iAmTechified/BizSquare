@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/routing/app_router.dart';
@@ -12,18 +13,29 @@ import 'core/services/unified_notification_service.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Safely initialize Firebase early
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint('[Firebase] Initialization error (non-fatal): $e');
+  }
+
   // Wire up push tap deep link handler early (before app renders)
   // This handles the terminated-state tap. GoRouter will resolve the
   // deepLink once the app is running and the user is authenticated.
   String? pendingDeepLink;
   String? pendingNotificationId;
 
-  await PushNotificationService.handleInitialMessage(
-    onDeepLink: (deepLink, notificationId) {
-      pendingDeepLink = deepLink;
-      pendingNotificationId = notificationId;
-    },
-  );
+  try {
+    await PushNotificationService.handleInitialMessage(
+      onDeepLink: (deepLink, notificationId) {
+        pendingDeepLink = deepLink;
+        pendingNotificationId = notificationId;
+      },
+    );
+  } catch (e) {
+    debugPrint('[PushNotificationService] handleInitialMessage error (non-fatal): $e');
+  }
 
   runApp(
     ProviderScope(

@@ -40,6 +40,19 @@ class ApiService {
         },
       ),
     );
+
+    // Add Dio LogInterceptor for live request/response inspection
+    _dio.interceptors.add(
+      LogInterceptor(
+        request: true,
+        requestHeader: true,
+        requestBody: true,
+        responseHeader: false,
+        responseBody: true,
+        error: true,
+        logPrint: (obj) => debugPrint('[DIO] $obj'),
+      ),
+    );
   }
 
   Dio get dio => _dio;

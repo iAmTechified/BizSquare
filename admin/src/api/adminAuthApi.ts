@@ -91,6 +91,97 @@ async function adminFetch<T>(endpoint: string, options: RequestInit = {}): Promi
   }
 }
 
+export interface OverviewData {
+  success: boolean;
+  timestamp: string;
+  range: 'today' | '7d' | '30d';
+  users: {
+    total_users: number;
+    active_users: number;
+    suspended_users: number;
+    new_users_in_period: number;
+  };
+  contactGain: {
+    latest_cycle: {
+      id: string;
+      cycle_number: number;
+      batch_date: string;
+      status: string;
+      users_processed: number;
+      total_allocations: number;
+      users_underfilled: number;
+    } | null;
+    contacts_gained_in_period: number;
+    sync_failures: number;
+  };
+  spotlight: {
+    active_campaign: {
+      id: string;
+      business_name: string;
+      title: string;
+      owner_name: string;
+      status: string;
+      participants_count: number;
+    } | null;
+    pending_reviews_count: number;
+  };
+  notifications: {
+    sent_in_period: number;
+    failed_in_period: number;
+    scheduled: number;
+  };
+  attentionItems: Array<{
+    id: string;
+    severity: 'critical' | 'high' | 'medium' | 'informational';
+    title: string;
+    description: string;
+    sourceModule: string;
+    actionRoute?: string;
+    timestamp: string;
+  }>;
+  recentActivity: Array<{
+    id: string;
+    action: string;
+    resource_type: string;
+    admin_name: string;
+    result: string;
+    created_at: string;
+  }>;
+  systemHealth: {
+    status: 'healthy' | 'degraded';
+    db_status: 'connected' | 'disconnected' | 'error';
+    db_latency_ms: number;
+    uptime_seconds: number;
+    memory_used_mb: number;
+  };
+}
+
+export interface AdminUserListItem {
+  id: string;
+  phone_number: string;
+  full_name: string;
+  akawo_points: number;
+  access_level: string;
+  is_active: boolean;
+  last_login: string | null;
+  created_at: string;
+}
+
+export interface UserDetailsResponse {
+  success: boolean;
+  user: AdminUserListItem;
+  points_history: Array<{
+    id: string;
+    points_awarded: number;
+    transaction_type: string;
+    verified_by_bot: boolean;
+    created_at: string;
+  }>;
+  metrics: {
+    contacts_count: number;
+  };
+}
+
 export const adminAuthApi = {
   /**
    * Real Admin Authentication
@@ -120,6 +211,59 @@ export const adminAuthApi = {
     } finally {
       clearAdminToken();
     }
+  },
+
+  /**
+   * Fetches real operational overview metrics from PostgreSQL database
+   */
+  async getOverview(range: 'today' | '7d' | '30d' = 'today'): Promise<OverviewData> {
+    return adminFetch<OverviewData>(`/admin/overview?range=${range}`);
+  },
+
+  /**
+   * Fetches real user registry from PostgreSQL database
+   */
+  async getUsersRegistry(params: { search?: string; status?: string; limit?: number; offset?: number } = {}): Promise<{
+    success: boolean;
+    users: AdminUserListItem[];
+    total_count: number;
+    limit: number;
+    offset: number;
+  }> {
+    const query = new URLSearchParams();
+    if (params.search) query.append('search', params.search);
+    if (params.status) query.append('status', params.status);
+    if (params.limit) query.append('limit', params.limit.toString());
+    if (params.offset) query.append('offset', params.offset.toString());
+
+    return adminFetch(`/admin/users?${query.toString()}`);
+  },
+
+  /**
+   * Fetches comprehensive user inspection details & transaction history
+   */
+  async getUserDetails(userId: string): Promise<UserDetailsResponse> {
+    return adminFetch<UserDetailsResponse>(`/admin/users/${userId}`);
+  },
+
+  /**
+   * Suspends or reinstates a user account
+   */
+  async suspendUserAccount(userId: string, suspend: boolean, reason?: string): Promise<{ success: boolean; message: string }> {
+    return adminFetch<{ success: boolean; message: string }>(`/admin/users/${userId}/suspend`, {
+      method: 'POST',
+      body: JSON.stringify({ suspend, reason }),
+    });
+  },
+
+  /**
+   * Adjusts Akawo Points balance for a user account
+   */
+  async adjustUserPoints(userId: string, amount: number, reason: string): Promise<{ success: boolean; message: string; updated_balance: number }> {
+    return adminFetch<{ success: boolean; message: string; updated_balance: number }>(`/admin/users/${userId}/adjust-points`, {
+      method: 'POST',
+      body: JSON.stringify({ amount, reason }),
+    });
   },
 
   /**

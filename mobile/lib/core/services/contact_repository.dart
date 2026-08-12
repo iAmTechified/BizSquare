@@ -6,6 +6,7 @@ import '../models/unified_contact_model.dart';
 import '../utils/phone_normalizer.dart';
 import 'device_contacts_adapter.dart';
 import 'contacts_cache_service.dart';
+import 'api_service.dart';
 
 final contactRepositoryProvider = Provider<ContactRepository>((ref) {
   return ContactRepository();
@@ -14,10 +15,29 @@ final contactRepositoryProvider = Provider<ContactRepository>((ref) {
 class ContactRepository {
   final Dio _dio;
   final FlutterSecureStorage _storage;
-  final String _baseUrl = 'http://localhost:8080/api/v1';
+  final String _baseUrl = ApiService.defaultBaseUrl;
 
   ContactRepository({Dio? dio, FlutterSecureStorage? storage})
-      : _dio = dio ?? Dio(BaseOptions(connectTimeout: const Duration(seconds: 10), receiveTimeout: const Duration(seconds: 15))),
+      : _dio = dio ??
+            (() {
+              final d = Dio(BaseOptions(
+                baseUrl: ApiService.defaultBaseUrl,
+                connectTimeout: const Duration(seconds: 10),
+                receiveTimeout: const Duration(seconds: 15),
+              ));
+              d.interceptors.add(
+                LogInterceptor(
+                  request: true,
+                  requestHeader: true,
+                  requestBody: true,
+                  responseHeader: false,
+                  responseBody: true,
+                  error: true,
+                  logPrint: (obj) => debugPrint('[DIO] $obj'),
+                ),
+              );
+              return d;
+            })(),
         _storage = storage ?? const FlutterSecureStorage();
 
   Future<Options> _getAuthHeaders() async {

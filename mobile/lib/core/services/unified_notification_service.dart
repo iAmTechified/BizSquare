@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,7 +16,7 @@ enum NotificationPriority { actionRequired, important, informational }
 
 class UnifiedNotificationService {
   final Ref _ref;
-  final FirebaseMessaging _fcm = FirebaseMessaging.instance;
+  FirebaseMessaging get _fcm => FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
 
   bool _initialized = false;
@@ -76,35 +77,44 @@ class UnifiedNotificationService {
       ));
     }
 
-    // 2. Request FCM Push Permissions
-    final settings = await _fcm.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-    debugPrint('[UnifiedNotificationService] FCM permission status: ${settings.authorizationStatus}');
-
-    // 3. Handle Foreground FCM Push Messages
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      debugPrint('[UnifiedNotificationService] Foreground push received: ${message.messageId}');
-      _handleForegroundPush(message);
-    });
-
-    // 4. Handle Background/Terminated Push Taps
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      final deepLink = message.data['deepLink'] ?? message.data['actionUrl'];
-      if (deepLink != null) {
-        _handleNotificationTap(deepLink.toString());
+    // 2. Safely initialize Firebase & FCM
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp();
       }
-    });
 
-    // Check if launched from terminated push tap
-    final initialMessage = await _fcm.getInitialMessage();
-    if (initialMessage != null) {
-      final deepLink = initialMessage.data['deepLink'] ?? initialMessage.data['actionUrl'];
-      if (deepLink != null) {
-        _handleNotificationTap(deepLink.toString());
+      // Request FCM Push Permissions
+      final settings = await _fcm.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      debugPrint('[UnifiedNotificationService] FCM permission status: ${settings.authorizationStatus}');
+
+      // Handle Foreground FCM Push Messages
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        debugPrint('[UnifiedNotificationService] Foreground push received: ${message.messageId}');
+        _handleForegroundPush(message);
+      });
+
+      // Handle Background/Terminated Push Taps
+      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+        final deepLink = message.data['deepLink'] ?? message.data['actionUrl'];
+        if (deepLink != null) {
+          _handleNotificationTap(deepLink.toString());
+        }
+      });
+
+      // Check if launched from terminated push tap
+      final initialMessage = await _fcm.getInitialMessage();
+      if (initialMessage != null) {
+        final deepLink = initialMessage.data['deepLink'] ?? initialMessage.data['actionUrl'];
+        if (deepLink != null) {
+          _handleNotificationTap(deepLink.toString());
+        }
       }
+    } catch (e) {
+      debugPrint('[UnifiedNotificationService] FCM initialization skipped/failed: $e');
     }
   }
 

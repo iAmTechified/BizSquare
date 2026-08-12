@@ -53,7 +53,7 @@ class PushNotificationService {
 
   PushNotificationService._();
 
-  final FirebaseMessaging _fcm = FirebaseMessaging.instance;
+  FirebaseMessaging get _fcm => FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
 
   bool _initialized = false;
@@ -68,34 +68,41 @@ class PushNotificationService {
   /// Call this once after user logs in (auth token must be set in ApiService first).
   Future<void> initialize() async {
     if (_initialized) return;
+
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp();
+      }
+    } catch (e) {
+      debugPrint('[PushNotificationService] Firebase init error: $e');
+      return;
+    }
+
     _initialized = true;
 
     try {
-      await Firebase.initializeApp();
+      // Set up background handler
+      FirebaseMessaging.onBackgroundMessage(firebaseBackgroundMessageHandler);
+
+      // Initialize local notifications for foreground display
+      await _setupLocalNotifications();
+
+      // Request permission (iOS / Android 13+)
+      await _requestPermission();
+
+      // Get and upload FCM token
+      await _uploadCurrentToken();
+
+      // Handle token refresh (device token can change)
+      _fcm.onTokenRefresh.listen(_onTokenRefresh);
+
+      // Foreground message handler
+      FirebaseMessaging.onMessage.listen(_onForegroundMessage);
+
+      debugPrint('[PushNotificationService] Initialized successfully.');
     } catch (e) {
-      // Firebase already initialized (e.g. hot restart)
-      debugPrint('[PushNotificationService] Firebase already initialized: $e');
+      debugPrint('[PushNotificationService] Push setup error (non-fatal): $e');
     }
-
-    // Set up background handler
-    FirebaseMessaging.onBackgroundMessage(firebaseBackgroundMessageHandler);
-
-    // Initialize local notifications for foreground display
-    await _setupLocalNotifications();
-
-    // Request permission (iOS / Android 13+)
-    await _requestPermission();
-
-    // Get and upload FCM token
-    await _uploadCurrentToken();
-
-    // Handle token refresh (device token can change)
-    _fcm.onTokenRefresh.listen(_onTokenRefresh);
-
-    // Foreground message handler
-    FirebaseMessaging.onMessage.listen(_onForegroundMessage);
-
-    debugPrint('[PushNotificationService] Initialized successfully.');
   }
 
   /// Call this on app startup to handle push taps from terminated/background states.
@@ -103,16 +110,24 @@ class PushNotificationService {
   static Future<void> handleInitialMessage({
     required Function(String deepLink, String notificationId) onDeepLink,
   }) async {
-    // App opened from terminated state via push tap
-    final RemoteMessage? initial = await FirebaseMessaging.instance.getInitialMessage();
-    if (initial != null) {
-      _handlePushTap(initial, onDeepLink);
-    }
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp();
+      }
 
-    // App resumed from background via push tap
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      _handlePushTap(message, onDeepLink);
-    });
+      // App opened from terminated state via push tap
+      final RemoteMessage? initial = await FirebaseMessaging.instance.getInitialMessage();
+      if (initial != null) {
+        _handlePushTap(initial, onDeepLink);
+      }
+
+      // App resumed from background via push tap
+      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+        _handlePushTap(message, onDeepLink);
+      });
+    } catch (e) {
+      debugPrint('[PushNotificationService] handleInitialMessage skipped/failed: $e');
+    }
   }
 
   static void _handlePushTap(

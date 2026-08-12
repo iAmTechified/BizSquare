@@ -11,17 +11,22 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        // FIX 1: Kotlin DSL uses isCoreLibraryDesugaringEnabled instead of coreLibraryDesugaringEnabled
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+    // FIX 2: Replaced the deprecated kotlinOptions block with the modern compilerOptions block
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile>().configureEach {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
     }
 
     defaultConfig {
         applicationId = "com.bizsquare.app"
-        minSdk = flutter.minSdkVersion // Recommended for local_auth and modern biometric hardware
+        minSdk = flutter.minSdkVersion 
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -33,6 +38,12 @@ android {
         }
     }
 }
+
+dependencies {
+    // Upgraded from 2.0.4 to 2.1.4 as requested by the error log
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+}
+
 
 flutter {
     source = "../.."

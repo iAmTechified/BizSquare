@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:home_widget/home_widget.dart';
 import '../models/contact_gain_widget_state.dart';
 import '../widgets/add_widget_bottom_sheet.dart';
@@ -15,6 +16,51 @@ class WidgetService {
   static const String androidSpotlightWidgetProvider = 'SpotlightWidgetProvider';
   static const String iosContactWidgetKind = 'ContactGainWidget';
   static const String iosSpotlightWidgetKind = 'SpotlightWidget';
+
+  static const String _keyContactWidgetInstalled = 'bizsquare_widget_contact_installed';
+  static const String _keySpotlightWidgetInstalled = 'bizsquare_widget_spotlight_installed';
+  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+
+  /// Checks whether user already installed/pinned the Contact Gain widget
+  Future<bool> isContactWidgetInstalled() async {
+    try {
+      final val = await _storage.read(key: _keyContactWidgetInstalled);
+      return val == 'true';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Marks the Contact Gain widget as installed
+  Future<void> markContactWidgetInstalled() async {
+    try {
+      await _storage.write(key: _keyContactWidgetInstalled, value: 'true');
+    } catch (_) {}
+  }
+
+  /// Checks whether user already installed/pinned the Spotlight widget
+  Future<bool> isSpotlightWidgetInstalled() async {
+    try {
+      final val = await _storage.read(key: _keySpotlightWidgetInstalled);
+      return val == 'true';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Marks the Spotlight widget as installed
+  Future<void> markSpotlightWidgetInstalled() async {
+    try {
+      await _storage.write(key: _keySpotlightWidgetInstalled, value: 'true');
+    } catch (_) {}
+  }
+
+  /// Checks if any widget is installed
+  Future<bool> hasInstalledAnyWidget() async {
+    final contact = await isContactWidgetInstalled();
+    final spotlight = await isSpotlightWidgetInstalled();
+    return contact || spotlight;
+  }
 
   /// Syncs real Contact Gain Widget Data to Native OS Home Screen Widget Storage
   Future<void> syncNativeWidgetData(ContactGainWidgetData data) async {
@@ -61,11 +107,9 @@ class WidgetService {
   /// Checks if the device launcher supports pinning widgets programmatically
   Future<bool> isPinWidgetSupported() async {
     try {
-      // First try native home_widget method
       final isSupported = await HomeWidget.isRequestPinWidgetSupported();
       if (isSupported == true) return true;
 
-      // Fallback method channel
       final supported = await _channel.invokeMethod<bool>('isPinWidgetSupported');
       return supported ?? false;
     } catch (_) {
@@ -74,17 +118,30 @@ class WidgetService {
   }
 
   /// Triggers native Android/iOS system prompt: "Add BizSquare Widget to Home screen?"
-  Future<bool> requestPinWidget() async {
+  Future<bool> requestPinWidget({bool isSpotlight = false}) async {
     try {
       await HomeWidget.requestPinWidget(
-        androidName: androidContactWidgetProvider,
+        androidName: isSpotlight ? androidSpotlightWidgetProvider : androidContactWidgetProvider,
       );
+      if (isSpotlight) {
+        await markSpotlightWidgetInstalled();
+      } else {
+        await markContactWidgetInstalled();
+      }
       return true;
     } catch (e) {
       debugPrint('[WidgetService] requestPinWidget failed, trying channel fallback: $e');
       try {
-        final success = await _channel.invokeMethod<bool>('requestPinWidget');
-        return success ?? false;
+        final success = await _channel.invokeMethod<bool>('requestPinWidget', {'isSpotlight': isSpotlight});
+        if (success == true) {
+          if (isSpotlight) {
+            await markSpotlightWidgetInstalled();
+          } else {
+            await markContactWidgetInstalled();
+          }
+          return true;
+        }
+        return false;
       } catch (_) {
         return false;
       }
@@ -95,9 +152,11 @@ class WidgetService {
   Future<void> showAddWidgetPrompt(BuildContext context) async {
     await showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => const AddWidgetBottomSheet(),
     );
   }
 }
+

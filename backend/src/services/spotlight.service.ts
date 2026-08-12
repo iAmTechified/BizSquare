@@ -1,8 +1,21 @@
 import { pool } from '../db/pool';
 
+export interface SpotlightRequirement {
+  prompt: string;
+  maxCharacters: number;
+  placeholder: string;
+}
+
 export interface SpotlightCurrentState {
   campaignId: string | null;
   isMyTurn: boolean;
+  turnStatus: 'my_turn' | 'not_my_turn' | 'waiting';
+  cycleNumber: number;
+  cycleStartDate: string;
+  cycleEndDate: string;
+  submissionStatus: 'not_submitted' | 'pending' | 'verified' | 'needs_changes';
+  rejectionReason: string | null;
+  submissionRequirement: SpotlightRequirement;
   user: {
     id: string;
     businessName: string;
@@ -20,19 +33,40 @@ export interface SpotlightCurrentState {
   targetParticipants: number;
   participantCount: number;
   hasParticipated: boolean;
-  startDate: string;
-  endDate: string;
 }
+
+export interface SpotlightParticipant {
+  id: string;
+  businessName: string;
+  fullName: string;
+  avatarId: number;
+  primaryOffer: string;
+  participatedAt: string;
+}
+
+export interface SubmitSpotlightPayload {
+  idempotencyKey?: string;
+  title: string;
+  promoText: string;
+  caption: string;
+  flyerUrl?: string;
+}
+
+const DEFAULT_REQUIREMENT: SpotlightRequirement = {
+  prompt: 'What are you sharing this cycle? Showcase your best product, offer, or service to the network.',
+  maxCharacters: 300,
+  placeholder: "e.g. 20% discount on all Men's Native Wears this week with nationwide delivery...",
+};
 
 export class SpotlightService {
   /**
-   * Fetches or automatically schedules the current active Spotlight campaign.
+   * Fetches the server-authoritative active Spotlight campaign and turn state.
    */
   static async getCurrentSpotlight(userId: string): Promise<SpotlightCurrentState> {
     const client = await pool.connect();
     try {
-      // 1. Fetch active campaign for today
-      let { rows: [campaign] } = await client.query(`
+      // 1. First check if current user has an active/pending campaign assigned to them
+      let { rows: [userCampaign] } = await client.query(`
         SELECT 
           sc.*,
           u.business_name,
@@ -44,14 +78,38 @@ export class SpotlightService {
         JOIN users u ON u.id = sc.user_id
         LEFT JOIN business_micro_niches bmn ON bmn.user_id = u.id AND bmn.is_primary = TRUE
         LEFT JOIN micro_niches mn ON mn.id = bmn.micro_niche_id
-        WHERE sc.is_active = TRUE 
+        WHERE sc.user_id = $1 AND sc.is_active = TRUE
           AND sc.start_date <= CURRENT_DATE 
           AND sc.end_date >= CURRENT_DATE
         ORDER BY sc.created_at DESC
         LIMIT 1
-      `);
+      `, [userId]);
 
-      // 2. If no campaign exists for today, select a candidate user and initialize one
+      // 2. If user doesn't have an active campaign, fetch general active community campaign
+      let campaign = userCampaign;
+      if (!campaign) {
+        const { rows: [activeCamp] } = await client.query(`
+          SELECT 
+            sc.*,
+            u.business_name,
+            u.full_name,
+            u.phone_number,
+            u.avatar_id,
+            COALESCE(mn.name, 'General Business') as primary_offer
+          FROM spotlight_campaigns sc
+          JOIN users u ON u.id = sc.user_id
+          LEFT JOIN business_micro_niches bmn ON bmn.user_id = u.id AND bmn.is_primary = TRUE
+          LEFT JOIN micro_niches mn ON mn.id = bmn.micro_niche_id
+          WHERE sc.is_active = TRUE 
+            AND sc.start_date <= CURRENT_DATE 
+            AND sc.end_date >= CURRENT_DATE
+          ORDER BY sc.created_at DESC
+          LIMIT 1
+        `);
+        campaign = activeCamp;
+      }
+
+      // 3. Auto-seed if no campaign is currently active
       if (!campaign) {
         const { rows: [candidate] } = await client.query(`
           SELECT 
@@ -72,11 +130,13 @@ export class SpotlightService {
 
           const { rows: [newCamp] } = await client.query(`
             INSERT INTO spotlight_campaigns (
-              user_id, title, promo_text, caption, start_date, end_date, target_participants, is_active
+              user_id, title, promo_text, caption, start_date, end_date, target_participants, is_active,
+              submission_status, cycle_number, submission_requirement
             ) VALUES (
-              $1, $2, $3, $4, CURRENT_DATE, CURRENT_DATE + INTERVAL '6 days', 48, TRUE
+              $1, $2, $3, $4, CURRENT_DATE, CURRENT_DATE + INTERVAL '6 days', 48, TRUE,
+              'verified', 1, $5
             ) RETURNING *
-          `, [candidate.id, defaultTitle, defaultPromo, defaultCaption]);
+          `, [candidate.id, defaultTitle, defaultPromo, defaultCaption, JSON.stringify(DEFAULT_REQUIREMENT)]);
 
           campaign = {
             ...newCamp,
@@ -93,53 +153,73 @@ export class SpotlightService {
         return {
           campaignId: null,
           isMyTurn: false,
+          turnStatus: 'waiting',
+          cycleNumber: 1,
+          cycleStartDate: new Date().toISOString(),
+          cycleEndDate: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString(),
+          submissionStatus: 'not_submitted',
+          rejectionReason: null,
+          submissionRequirement: DEFAULT_REQUIREMENT,
           user: null,
           content: null,
           targetParticipants: 48,
           participantCount: 0,
           hasParticipated: false,
-          startDate: new Date().toISOString(),
-          endDate: new Date().toISOString(),
         };
       }
 
-      // 3. Count total participants for this campaign
+      // Count total participants
       const { rows: [{ count: partCount }] } = await client.query(
         `SELECT COUNT(*) FROM spotlight_participations WHERE campaign_id = $1`,
         [campaign.id]
       );
 
-      // 4. Check if current user has participated
+      // Check if current user participated
       const { rows: myPart } = await client.query(
         `SELECT id FROM spotlight_participations WHERE campaign_id = $1 AND user_id = $2`,
         [campaign.id, userId]
       );
 
       const isMyTurn = campaign.user_id === userId;
+      const turnStatus = isMyTurn ? 'my_turn' : 'not_my_turn';
       const hasParticipated = myPart.length > 0;
+
+      let requirement = DEFAULT_REQUIREMENT;
+      if (campaign.submission_requirement) {
+        try {
+          requirement = typeof campaign.submission_requirement === 'string'
+            ? JSON.parse(campaign.submission_requirement)
+            : campaign.submission_requirement;
+        } catch (_) {}
+      }
 
       return {
         campaignId: campaign.id,
         isMyTurn,
+        turnStatus,
+        cycleNumber: campaign.cycle_number || 1,
+        cycleStartDate: campaign.start_date,
+        cycleEndDate: campaign.end_date,
+        submissionStatus: (campaign.submission_status as any) || 'verified',
+        rejectionReason: campaign.rejection_reason || null,
+        submissionRequirement: requirement,
         user: {
           id: campaign.user_id,
-          businessName: campaign.business_name,
-          fullName: campaign.full_name,
+          businessName: campaign.business_name || 'Partner',
+          fullName: campaign.full_name || '',
           phoneNumber: campaign.phone_number || undefined,
           avatarId: campaign.avatar_id || 1,
-          primaryOffer: campaign.primary_offer,
+          primaryOffer: campaign.primary_offer || 'Verified Business',
         },
         content: {
-          title: campaign.title,
-          promoText: campaign.promo_text,
-          caption: campaign.caption,
+          title: campaign.title || 'Spotlight Feature',
+          promoText: campaign.promo_text || '',
+          caption: campaign.caption || '',
           flyerUrl: campaign.flyer_url || undefined,
         },
         targetParticipants: campaign.target_participants || 48,
         participantCount: parseInt(partCount, 10) || 0,
         hasParticipated,
-        startDate: campaign.start_date,
-        endDate: campaign.end_date,
       };
     } finally {
       client.release();
@@ -147,39 +227,71 @@ export class SpotlightService {
   }
 
   /**
-   * Records user participation (sharing to WhatsApp)
+   * Idempotent Spotlight Submission Handler.
    */
-  static async participate(userId: string, campaignId: string): Promise<{ success: boolean; message: string; pointsAwarded: number }> {
+  static async submitSpotlight(userId: string, payload: SubmitSpotlightPayload): Promise<{
+    success: boolean;
+    campaignId: string;
+    submissionStatus: string;
+    message: string;
+  }> {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
-      // Check if already participated
-      const { rows: existing } = await client.query(
-        `SELECT id FROM spotlight_participations WHERE campaign_id = $1 AND user_id = $2`,
-        [campaignId, userId]
-      );
-
-      if (existing.length > 0) {
-        await client.query('COMMIT');
-        return { success: true, message: 'Already participated', pointsAwarded: 0 };
+      // Check idempotency key if provided
+      if (payload.idempotencyKey) {
+        const { rows: existingKey } = await client.query(
+          `SELECT id, submission_status FROM spotlight_campaigns WHERE idempotency_key = $1 AND user_id = $2`,
+          [payload.idempotencyKey, userId]
+        );
+        if (existingKey.length > 0) {
+          await client.query('COMMIT');
+          return {
+            success: true,
+            campaignId: existingKey[0].id,
+            submissionStatus: existingKey[0].submission_status,
+            message: 'Spotlight already submitted (Idempotent response).',
+          };
+        }
       }
 
-      // Insert participation record
-      await client.query(`
-        INSERT INTO spotlight_participations (campaign_id, user_id, channel, verified)
-        VALUES ($1, $2, 'whatsapp_status', TRUE)
-      `, [campaignId, userId]);
+      // Check if user has an existing active campaign
+      const { rows: userCamps } = await client.query(
+        `SELECT id FROM spotlight_campaigns WHERE user_id = $1 AND is_active = TRUE ORDER BY created_at DESC LIMIT 1`,
+        [userId]
+      );
 
-      // Award Akawo points
-      await client.query(`
-        INSERT INTO akawo_ledger (user_id, points_awarded, transaction_type, verified_by_bot)
-        VALUES ($1, 2, 'spotlight_share', TRUE)
-      `, [userId]);
+      let campaignId: string;
+      if (userCamps.length > 0) {
+        campaignId = userCamps[0].id;
+        await client.query(`
+          UPDATE spotlight_campaigns
+          SET title = $1, promo_text = $2, caption = $3, flyer_url = $4,
+              submission_status = 'pending', idempotency_key = $5
+          WHERE id = $6
+        `, [payload.title, payload.promoText, payload.caption, payload.flyerUrl || null, payload.idempotencyKey || null, campaignId]);
+      } else {
+        const { rows: [created] } = await client.query(`
+          INSERT INTO spotlight_campaigns (
+            user_id, title, promo_text, caption, flyer_url, start_date, end_date,
+            target_participants, is_active, submission_status, idempotency_key, cycle_number
+          ) VALUES (
+            $1, $2, $3, $4, $5, CURRENT_DATE, CURRENT_DATE + INTERVAL '6 days',
+            48, TRUE, 'pending', $6, 1
+          ) RETURNING id
+        `, [userId, payload.title, payload.promoText, payload.caption, payload.flyerUrl || null, payload.idempotencyKey || null]);
+        campaignId = created.id;
+      }
 
       await client.query('COMMIT');
-      return { success: true, message: 'Participation verified! +2 Akawo Points awarded.', pointsAwarded: 2 };
-    } catch (err: any) {
+      return {
+        success: true,
+        campaignId,
+        submissionStatus: 'pending',
+        message: 'Spotlight submission received and is pending verification.',
+      };
+    } catch (err) {
       await client.query('ROLLBACK');
       throw err;
     } finally {
@@ -188,31 +300,81 @@ export class SpotlightService {
   }
 
   /**
-   * Sets content when it is user's turn in Spotlight
+   * Records user participation (sharing to WhatsApp Status)
    */
-  static async setMyContent(
-    userId: string,
-    title: string,
-    promoText: string,
-    caption: string,
-    flyerUrl?: string
-  ): Promise<void> {
-    await pool.query(`
-      UPDATE spotlight_campaigns
-      SET title = $1, promo_text = $2, caption = $3, flyer_url = $4
-      WHERE user_id = $5 AND is_active = TRUE
-    `, [title, promoText, caption, flyerUrl || null, userId]);
+  static async participate(userId: string, campaignId: string): Promise<{ success: boolean; message: string; pointsAwarded: number }> {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const { rows: existing } = await client.query(
+        `SELECT id FROM spotlight_participations WHERE campaign_id = $1 AND user_id = $2`,
+        [campaignId, userId]
+      );
+
+      if (existing.length > 0) {
+        await client.query('COMMIT');
+        return { success: true, message: 'Participation already recorded.', pointsAwarded: 0 };
+      }
+
+      await client.query(`
+        INSERT INTO spotlight_participations (campaign_id, user_id, channel, verified)
+        VALUES ($1, $2, 'whatsapp_status', TRUE)
+      `, [campaignId, userId]);
+
+      await client.query(`
+        INSERT INTO akawo_ledger (user_id, points_awarded, transaction_type, verified_by_bot)
+        VALUES ($1, 2, 'spotlight_share', TRUE)
+      `, [userId]);
+
+      await client.query('COMMIT');
+      return { success: true, message: 'Participation verified! +2 Akawo Points awarded.', pointsAwarded: 2 };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Fetches list of authorized participants for a campaign.
+   */
+  static async getCampaignParticipants(campaignId: string): Promise<SpotlightParticipant[]> {
+    const { rows } = await pool.query(`
+      SELECT 
+        u.id, u.business_name, u.full_name, u.avatar_id,
+        COALESCE(mn.name, 'Verified Member') as primary_offer,
+        sp.created_at as participated_at
+      FROM spotlight_participations sp
+      JOIN users u ON u.id = sp.user_id
+      LEFT JOIN business_micro_niches bmn ON bmn.user_id = u.id AND bmn.is_primary = TRUE
+      LEFT JOIN micro_niches mn ON mn.id = bmn.micro_niche_id
+      WHERE sp.campaign_id = $1 AND sp.verified = TRUE
+      ORDER BY sp.created_at DESC
+    `, [campaignId]);
+
+    return rows.map(r => ({
+      id: r.id,
+      businessName: r.business_name || r.full_name,
+      fullName: r.full_name || '',
+      avatarId: r.avatar_id || 1,
+      primaryOffer: r.primary_offer,
+      participatedAt: r.participated_at,
+    }));
   }
 
   /**
    * Fetches Spotlight History (Mine & Others)
    */
   static async getHistory(userId: string) {
-    // 1. Mine (Campaigns created by user and participants who shared for them)
+    // 1. Mine (Campaigns created by the user)
     const { rows: mineCampaigns } = await pool.query(`
       SELECT 
         sc.id as campaign_id, sc.title, sc.promo_text, sc.caption, sc.flyer_url,
         sc.start_date, sc.end_date, sc.target_participants,
+        COALESCE(sc.submission_status, 'verified') as submission_status,
+        sc.rejection_reason,
         COUNT(sp.id) as participant_count
       FROM spotlight_campaigns sc
       LEFT JOIN spotlight_participations sp ON sp.campaign_id = sc.id
@@ -221,15 +383,16 @@ export class SpotlightService {
       ORDER BY sc.start_date DESC
     `, [userId]);
 
-    // 2. Others (Campaigns user participated in for other business owners)
+    // 2. Others (Campaigns user shared for others)
     const { rows: othersParticipations } = await pool.query(`
       SELECT 
         sp.id as participation_id, sp.created_at as participated_at,
-        sc.title, sc.promo_text, sc.caption, sc.flyer_url,
+        sc.id as campaign_id, sc.title, sc.promo_text, sc.caption, sc.flyer_url,
         u.business_name as creator_business_name,
         u.full_name as creator_name,
         u.avatar_id as creator_avatar,
-        COALESCE(mn.name, 'Business') as creator_primary_offer
+        COALESCE(mn.name, 'Business') as creator_primary_offer,
+        (SELECT COUNT(*) FROM spotlight_participations WHERE campaign_id = sc.id) as total_participants
       FROM spotlight_participations sp
       JOIN spotlight_campaigns sc ON sc.id = sp.campaign_id
       JOIN users u ON u.id = sc.user_id
@@ -248,11 +411,14 @@ export class SpotlightService {
         flyerUrl: c.flyer_url,
         startDate: c.start_date,
         endDate: c.end_date,
+        submissionStatus: c.submission_status,
+        rejectionReason: c.rejection_reason,
         participantCount: parseInt(c.participant_count, 10) || 0,
-        targetParticipants: c.target_participants,
+        targetParticipants: c.target_participants || 48,
       })),
       others: othersParticipations.map(p => ({
         participationId: p.participation_id,
+        campaignId: p.campaign_id,
         participatedAt: p.participated_at,
         title: p.title,
         promoText: p.promo_text,
@@ -262,6 +428,7 @@ export class SpotlightService {
         creatorName: p.creator_name,
         creatorAvatar: p.creator_avatar,
         creatorPrimaryOffer: p.creator_primary_offer,
+        participantCount: parseInt(p.total_participants, 10) || 1,
       })),
     };
   }

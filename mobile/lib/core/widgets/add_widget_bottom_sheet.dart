@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hugeicons/hugeicons.dart';
 import '../providers/contact_gain_widget_provider.dart';
+import '../providers/spotlight_widget_provider.dart';
 import '../services/widget_service.dart';
 import '../theme/app_theme.dart';
 import 'contact_gain_widget_card.dart';
+import 'spotlight_widget_card.dart';
+
+enum WidgetTypeChoice { contactGain, spotlight }
 
 class AddWidgetBottomSheet extends ConsumerStatefulWidget {
   const AddWidgetBottomSheet({super.key});
@@ -16,6 +20,7 @@ class AddWidgetBottomSheet extends ConsumerStatefulWidget {
 class _AddWidgetBottomSheetState extends ConsumerState<AddWidgetBottomSheet> {
   bool _isPinning = false;
   bool _pinnedSuccessfully = false;
+  WidgetTypeChoice _selectedType = WidgetTypeChoice.contactGain;
   WidgetSize _selectedSize = WidgetSize.medium;
 
   Future<void> _handlePinWidget() async {
@@ -53,7 +58,8 @@ class _AddWidgetBottomSheetState extends ConsumerState<AddWidgetBottomSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final liveWidgetData = ref.watch(contactGainWidgetProvider);
+    final liveContactData = ref.watch(contactGainWidgetProvider);
+    final liveSpotlightData = ref.watch(spotlightWidgetProvider);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
@@ -89,7 +95,7 @@ class _AddWidgetBottomSheetState extends ConsumerState<AddWidgetBottomSheet> {
               ),
               const SizedBox(width: 8),
               Text(
-                'Add Contact Gain Widget',
+                'Add BizSquare Widget',
                 style: AppTheme.satoshi(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
@@ -100,7 +106,7 @@ class _AddWidgetBottomSheetState extends ConsumerState<AddWidgetBottomSheet> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Keep your Contact Gain cycle status and new network batches visible directly on your home screen.',
+            'Keep your Contact Gain cycle and Spotlight features visible on your phone home screen.',
             textAlign: TextAlign.center,
             style: AppTheme.satoshi(
               fontSize: 13,
@@ -110,7 +116,18 @@ class _AddWidgetBottomSheetState extends ConsumerState<AddWidgetBottomSheet> {
           ),
           const SizedBox(height: 18),
 
-          // Size Toggle Pill (Small vs Medium)
+          // Widget Type Selector (Contact Gain vs Spotlight)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildTypeChip(WidgetTypeChoice.contactGain, 'Contact Gain', isDark),
+              const SizedBox(width: 10),
+              _buildTypeChip(WidgetTypeChoice.spotlight, 'Spotlight', isDark),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Size Toggle Pill (Medium vs Small)
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
@@ -130,11 +147,17 @@ class _AddWidgetBottomSheetState extends ConsumerState<AddWidgetBottomSheet> {
           // Live Interactive Widget Preview Card
           SizedBox(
             width: _selectedSize == WidgetSize.small ? 180 : double.infinity,
-            child: ContactGainWidgetCard(
-              size: _selectedSize,
-              overrideData: liveWidgetData,
-              onTap: () {}, // Preview only inside modal
-            ),
+            child: _selectedType == WidgetTypeChoice.contactGain
+                ? ContactGainWidgetCard(
+                    size: _selectedSize,
+                    overrideData: liveContactData,
+                    onTap: () {},
+                  )
+                : SpotlightWidgetCard(
+                    size: _selectedSize,
+                    overrideData: liveSpotlightData,
+                    onTap: () {},
+                  ),
           ),
           const SizedBox(height: 24),
 
@@ -176,6 +199,29 @@ class _AddWidgetBottomSheetState extends ConsumerState<AddWidgetBottomSheet> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTypeChip(WidgetTypeChoice type, String label, bool isDark) {
+    final selected = _selectedType == type;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (val) {
+        if (val) setState(() => _selectedType = type);
+      },
+      selectedColor: AppTheme.primaryBlue.withValues(alpha: 0.15),
+      backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+      side: BorderSide(
+        color: selected ? AppTheme.primaryBlue : Colors.transparent,
+      ),
+      labelStyle: AppTheme.satoshi(
+        fontSize: 12,
+        fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+        color: selected
+            ? AppTheme.primaryBlue
+            : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
       ),
     );
   }

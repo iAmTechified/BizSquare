@@ -11,10 +11,12 @@ final widgetServiceProvider = Provider<WidgetService>((ref) {
 
 class WidgetService {
   static const _channel = MethodChannel('com.bizsquare.app/widget');
-  static const String androidWidgetProvider = 'ContactGainWidgetProvider';
-  static const String iosWidgetKind = 'ContactGainWidget';
+  static const String androidContactWidgetProvider = 'ContactGainWidgetProvider';
+  static const String androidSpotlightWidgetProvider = 'SpotlightWidgetProvider';
+  static const String iosContactWidgetKind = 'ContactGainWidget';
+  static const String iosSpotlightWidgetKind = 'SpotlightWidget';
 
-  /// Syncs real Contact Gain Widget Data to Native OS Home Screen Widget Storage (SharedPreferences / AppGroup)
+  /// Syncs real Contact Gain Widget Data to Native OS Home Screen Widget Storage
   Future<void> syncNativeWidgetData(ContactGainWidgetData data) async {
     try {
       await HomeWidget.saveWidgetData<String>('widget_state', data.stateType.name);
@@ -25,15 +27,34 @@ class WidgetService {
       await HomeWidget.saveWidgetData<String>('widget_action_label', data.actionLabel);
       await HomeWidget.saveWidgetData<String>('widget_deep_link', data.deepLink);
       await HomeWidget.saveWidgetData<bool>('widget_is_offline', data.isOffline);
+      await HomeWidget.saveWidgetData<bool>('widget_is_stale', data.isStale);
       await HomeWidget.saveWidgetData<String>('widget_updated_at', data.timestamp.toIso8601String());
 
-      // Trigger OS Home Screen update
       await HomeWidget.updateWidget(
-        androidName: androidWidgetProvider,
-        iOSName: iosWidgetKind,
+        androidName: androidContactWidgetProvider,
+        iOSName: iosContactWidgetKind,
       );
     } catch (e) {
-      debugPrint('[WidgetService] Native widget sync error (non-fatal): $e');
+      debugPrint('[WidgetService] Contact widget sync error (non-fatal): $e');
+    }
+  }
+
+  /// Syncs real Spotlight Widget Data to Native OS Home Screen Widget Storage
+  Future<void> syncSpotlightNativeWidgetData(dynamic data) async {
+    try {
+      await HomeWidget.saveWidgetData<String>('spotlight_widget_state', data.stateType.name);
+      await HomeWidget.saveWidgetData<String>('spotlight_widget_headline', data.headline);
+      await HomeWidget.saveWidgetData<String>('spotlight_widget_subtitle', data.subtitle);
+      await HomeWidget.saveWidgetData<int>('spotlight_participant_count', data.participantCount);
+      await HomeWidget.saveWidgetData<String>('spotlight_action_label', data.actionLabel);
+      await HomeWidget.saveWidgetData<String>('spotlight_deep_link', data.deepLink);
+
+      await HomeWidget.updateWidget(
+        androidName: androidSpotlightWidgetProvider,
+        iOSName: iosSpotlightWidgetKind,
+      );
+    } catch (e) {
+      debugPrint('[WidgetService] Spotlight widget sync error (non-fatal): $e');
     }
   }
 
@@ -56,7 +77,7 @@ class WidgetService {
   Future<bool> requestPinWidget() async {
     try {
       await HomeWidget.requestPinWidget(
-        androidName: androidWidgetProvider,
+        androidName: androidContactWidgetProvider,
       );
       return true;
     } catch (e) {

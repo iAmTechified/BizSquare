@@ -4,7 +4,7 @@ import '../services/widget_service.dart';
 import 'home_state_provider.dart';
 import 'permission_state_provider.dart';
 
-/// Provider that calculates the dynamic Contact Gain Widget state
+/// Provider that calculates prepared Contact Gain Widget state
 /// from real application state and syncs with native OS home screen widgets.
 final contactGainWidgetProvider = Provider<ContactGainWidgetData>((ref) {
   final homeState = ref.watch(homeStateProvider);
@@ -12,6 +12,18 @@ final contactGainWidgetProvider = Provider<ContactGainWidgetData>((ref) {
   final widgetService = ref.watch(widgetServiceProvider);
 
   final summary = homeState.contactGain;
+  final now = DateTime.now();
+
+  // Freshness check: Is batchDate older than 7 days?
+  bool isStale = false;
+  if (summary?.batchDate != null && summary!.batchDate.isNotEmpty) {
+    try {
+      final batchDateTime = DateTime.parse(summary.batchDate);
+      if (now.difference(batchDateTime).inDays >= 7) {
+        isStale = true;
+      }
+    } catch (_) {}
+  }
 
   ContactGainWidgetStateType stateType;
   String headline;
@@ -26,7 +38,9 @@ final contactGainWidgetProvider = Provider<ContactGainWidgetData>((ref) {
   if (homeState.isOffline) {
     stateType = ContactGainWidgetStateType.offline;
     headline = "You're offline";
-    subtitle = "Showing your latest network update";
+    subtitle = summary?.gainedThisWeek != null && summary!.gainedThisWeek > 0
+        ? "Showing ${summary.gainedThisWeek} contacts from latest cached update"
+        : "Showing your latest network update";
     contactCount = summary?.gainedThisWeek ?? 0;
     actionLabel = "View";
     deepLink = "/contacts";
@@ -58,7 +72,16 @@ final contactGainWidgetProvider = Provider<ContactGainWidgetData>((ref) {
     actionLabel = "Building...";
     deepLink = "/home";
   }
-  // 5. READY STATE CHECK (State D)
+  // 5. STALE DATA HANDLING (Section 7 Acceptance)
+  else if (isStale && summary != null && summary.gainedThisWeek > 0) {
+    stateType = ContactGainWidgetStateType.completed;
+    contactCount = summary.gainedThisWeek;
+    headline = "Previous network update";
+    subtitle = "$contactCount contacts from previous cycle · Next update due";
+    actionLabel = "View contacts";
+    deepLink = "/contacts";
+  }
+  // 6. READY STATE CHECK (State D)
   else if (summary != null && (summary.remainingCount > 0 || summary.status == 'READY')) {
     stateType = ContactGainWidgetStateType.ready;
     contactCount = summary.remainingCount > 0 ? summary.remainingCount : summary.gainedThisWeek;
@@ -67,7 +90,7 @@ final contactGainWidgetProvider = Provider<ContactGainWidgetData>((ref) {
     actionLabel = "View";
     deepLink = "/contacts";
   }
-  // 6. COMPLETED STATE CHECK (State E)
+  // 7. COMPLETED STATE CHECK (State E)
   else if (summary != null && summary.gainedThisWeek > 0 && summary.status == 'SYNCED') {
     stateType = ContactGainWidgetStateType.completed;
     contactCount = summary.gainedThisWeek;
@@ -76,13 +99,11 @@ final contactGainWidgetProvider = Provider<ContactGainWidgetData>((ref) {
     actionLabel = "View contacts";
     deepLink = "/contacts";
   }
-  // 7. WAITING STATE CHECK (State B)
+  // 8. WAITING STATE CHECK (State B)
   else {
     stateType = ContactGainWidgetStateType.waiting;
     headline = "Next network update";
 
-    // Calculate real next Sunday cycle date
-    final now = DateTime.now();
     final daysUntilSunday = (DateTime.sunday - now.weekday + 7) % 7;
     final nextSunday = now.add(Duration(days: daysUntilSunday == 0 ? 7 : daysUntilSunday));
     nextUpdateDate = _formatShortDate(nextSunday);
@@ -102,12 +123,14 @@ final contactGainWidgetProvider = Provider<ContactGainWidgetData>((ref) {
     actionLabel: actionLabel,
     deepLink: deepLink,
     isOffline: homeState.isOffline,
+    isStale: isStale,
+    batchDate: summary?.batchDate,
     nextUpdateDate: nextUpdateDate,
     errorMessage: errorMessage,
-    timestamp: DateTime.now(),
+    timestamp: now,
   );
 
-  // Sync state data to native OS home screen widget storage asynchronously
+  // Sync prepared state to native OS widget storage
   widgetService.syncNativeWidgetData(data);
 
   return data;

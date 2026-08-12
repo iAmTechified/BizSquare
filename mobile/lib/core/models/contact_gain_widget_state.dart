@@ -19,6 +19,8 @@ class ContactGainWidgetData {
   final String actionLabel;
   final String deepLink;
   final bool isOffline;
+  final bool isStale;
+  final String? batchDate;
   final String? nextUpdateDate;
   final String? errorMessage;
   final DateTime timestamp;
@@ -32,6 +34,8 @@ class ContactGainWidgetData {
     required this.actionLabel,
     required this.deepLink,
     this.isOffline = false,
+    this.isStale = false,
+    this.batchDate,
     this.nextUpdateDate,
     this.errorMessage,
     required this.timestamp,
@@ -48,6 +52,8 @@ class ContactGainWidgetData {
       'action_label': actionLabel,
       'deep_link': deepLink,
       'is_offline': isOffline,
+      'is_stale': isStale,
+      'batch_date': batchDate ?? '',
       'next_update_date': nextUpdateDate ?? '',
       'error_message': errorMessage ?? '',
       'timestamp': timestamp.toIso8601String(),
@@ -68,6 +74,8 @@ class ContactGainWidgetData {
       actionLabel: map['action_label'] ?? 'View',
       deepLink: map['deep_link'] ?? '/home',
       isOffline: map['is_offline'] ?? false,
+      isStale: map['is_stale'] ?? false,
+      batchDate: map['batch_date'],
       nextUpdateDate: map['next_update_date'],
       errorMessage: map['error_message'],
       timestamp: map['timestamp'] != null

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,47 +15,80 @@ class SplashScreen extends ConsumerStatefulWidget {
 
 class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProviderStateMixin {
   late AnimationController _entranceCtrl;
-  late Animation<double> _fadeAnim;
-  late Animation<double> _scaleAnim;
+  late Animation<double> _logoScaleAnim;
+  late Animation<double> _titleFadeAnim;
+  late Animation<Offset> _titleSlideAnim;
+  late Animation<double> _taglineFadeAnim;
+  late Animation<Offset> _taglineSlideAnim;
 
   // Expanding aura glow behind logo
   late AnimationController _auraGlowCtrl;
   late Animation<double> _auraScaleAnim;
   late Animation<double> _auraOpacityAnim;
 
-  // Shimmer / Gradient animation over logo & text
-  late AnimationController _shimmerCtrl;
+  // Perimeter 4-edge laser line & gradient text controller
+  late AnimationController _loopCtrl;
 
   @override
   void initState() {
     super.initState();
 
-    // 1. Entrance Controller
+    // 1. Staggered Flag-Up Entrance Controller (1.4s)
     _entranceCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1400),
     );
-    _fadeAnim = CurvedAnimation(parent: _entranceCtrl, curve: Curves.easeIn);
-    _scaleAnim = CurvedAnimation(parent: _entranceCtrl, curve: Curves.easeOutBack);
+
+    _logoScaleAnim = CurvedAnimation(
+      parent: _entranceCtrl,
+      curve: const Interval(0.0, 0.5, curve: Curves.easeOutBack),
+    );
+
+    // Title Entrance (Interval 0.25 -> 0.70)
+    _titleFadeAnim = CurvedAnimation(
+      parent: _entranceCtrl,
+      curve: const Interval(0.25, 0.70, curve: Curves.easeIn),
+    );
+    _titleSlideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.35),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _entranceCtrl,
+      curve: const Interval(0.25, 0.70, curve: Curves.easeOutCubic),
+    ));
+
+    // Tagline Entrance (Interval 0.50 -> 0.95 - Flag up follow-through)
+    _taglineFadeAnim = CurvedAnimation(
+      parent: _entranceCtrl,
+      curve: const Interval(0.50, 0.95, curve: Curves.easeIn),
+    );
+    _taglineSlideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.40),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _entranceCtrl,
+      curve: const Interval(0.50, 0.95, curve: Curves.easeOutCubic),
+    ));
+
     _entranceCtrl.forward();
 
-    // 2. Expanding Aura Glow Controller (Repeats: expands out while fading out)
+    // 2. Expanding Aura Glow Controller
     _auraGlowCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2400),
     )..repeat();
 
-    _auraScaleAnim = Tween<double>(begin: 0.8, end: 2.2).animate(
+    _auraScaleAnim = Tween<double>(begin: 0.9, end: 2.2).animate(
       CurvedAnimation(parent: _auraGlowCtrl, curve: Curves.easeOutCubic),
     );
-    _auraOpacityAnim = Tween<double>(begin: 0.6, end: 0.0).animate(
+    _auraOpacityAnim = Tween<double>(begin: 0.5, end: 0.0).animate(
       CurvedAnimation(parent: _auraGlowCtrl, curve: Curves.easeOutQuad),
     );
 
-    // 3. Continuous Shimmer Sweep Controller
-    _shimmerCtrl = AnimationController(
+    // 3. Continuous 4-Edge Laser & Gradient Sweep Controller
+    _loopCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2800),
+      duration: const Duration(milliseconds: 3000),
     )..repeat();
 
     _initializeApp();
@@ -97,7 +131,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
   void dispose() {
     _entranceCtrl.dispose();
     _auraGlowCtrl.dispose();
-    _shimmerCtrl.dispose();
+    _loopCtrl.dispose();
     super.dispose();
   }
 
@@ -110,205 +144,144 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Center(
-          child: FadeTransition(
-            opacity: _fadeAnim,
-            child: ScaleTransition(
-              scale: _scaleAnim,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // 1. Logo Area (NO CARD CONTAINER / NO CARD BOX)
-                  SizedBox(
-                    width: 140,
-                    height: 140,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        // Expanding & Fading Background Glow Aura
-                        AnimatedBuilder(
-                          animation: _auraGlowCtrl,
-                          builder: (context, child) {
-                            return Transform.scale(
-                              scale: _auraScaleAnim.value,
-                              child: Opacity(
-                                opacity: _auraOpacityAnim.value,
-                                child: Container(
-                                  width: 90,
-                                  height: 90,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: const Color(0xFF0058FF).withValues(alpha: isDark ? 0.45 : 0.25),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.35 : 0.2),
-                                        blurRadius: 30,
-                                        spreadRadius: 10,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-
-                        // Animated Glowing Edge Ring Line
-                        AnimatedBuilder(
-                          animation: _shimmerCtrl,
-                          builder: (context, child) {
-                            final angle = _shimmerCtrl.value * 2 * 3.14159265;
-                            return Container(
-                              width: 94,
-                              height: 94,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: SweepGradient(
-                                  transform: GradientRotation(angle),
-                                  colors: const [
-                                    Color(0xFF0058FF),
-                                    Color(0xFF10B981),
-                                    Color(0xFF7C3AED),
-                                    Color(0xFF0058FF),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // 1. Logo Area: Unboxed, Larger (96x96), Original Colors Maintained
+              ScaleTransition(
+                scale: _logoScaleAnim,
+                child: SizedBox(
+                  width: 140,
+                  height: 140,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Expanding & Fading Background Glow Aura
+                      AnimatedBuilder(
+                        animation: _auraGlowCtrl,
+                        builder: (context, child) {
+                          return Transform.scale(
+                            scale: _auraScaleAnim.value,
+                            child: Opacity(
+                              opacity: _auraOpacityAnim.value,
+                              child: Container(
+                                width: 96,
+                                height: 96,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(26),
+                                  color: const Color(0xFF0058FF).withValues(alpha: isDark ? 0.35 : 0.20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.30 : 0.15),
+                                      blurRadius: 36,
+                                      spreadRadius: 8,
+                                    ),
                                   ],
                                 ),
                               ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(2),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: theme.scaffoldBackgroundColor,
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+                            ),
+                          );
+                        },
+                      ),
 
-                        // Raw Unboxed Logo Image with Shimmer Sweep Overlay
-                        AnimatedBuilder(
-                          animation: _shimmerCtrl,
-                          builder: (context, child) {
-                            return ShaderMask(
-                              blendMode: BlendMode.srcATop,
-                              shaderCallback: (bounds) {
-                                final shimmerPos = _shimmerCtrl.value * bounds.width * 2 - bounds.width;
-                                return LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: const [
-                                    Colors.white,
-                                    Color(0xFFE2E8F0),
-                                    Colors.white,
-                                  ],
-                                  stops: const [0.0, 0.5, 1.0],
-                                  transform: GradientTranslation(Offset(shimmerPos, 0)),
-                                ).createShader(bounds);
-                              },
-                              child: Image.asset(
-                                'assets/images/bizsquare_icon.png',
-                                width: 72,
-                                height: 72,
-                                fit: BoxFit.contain,
-                                errorBuilder: (_, __, ___) => Image.asset(
-                                  'assets/images/bizsquare_icon_nobg.png',
-                                  width: 72,
-                                  height: 72,
-                                  fit: BoxFit.contain,
-                                ),
-                              ),
-                            );
-                          },
+                      // 4 Moving Edge Laser Lines around the Square Perimeter
+                      AnimatedBuilder(
+                        animation: _loopCtrl,
+                        builder: (context, child) {
+                          return CustomPaint(
+                            size: const Size(108, 108),
+                            painter: _SquarePerimeterLaserPainter(
+                              progress: _loopCtrl.value,
+                              isDark: isDark,
+                            ),
+                          );
+                        },
+                      ),
+
+                      // Real Original Logo Image (Original Colors Preserved, No Shader Masking)
+                      Image.asset(
+                        'assets/images/bizsquare_icon.png',
+                        width: 96,
+                        height: 96,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => Image.asset(
+                          'assets/images/bizsquare_icon_nobg.png',
+                          width: 96,
+                          height: 96,
+                          fit: BoxFit.contain,
                         ),
-                      ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // 2. Sequential Flag-Up Entrance: BizSquare Name Text (Logo is 96px, Name is 26px so logo is larger!)
+              SlideTransition(
+                position: _titleSlideAnim,
+                child: FadeTransition(
+                  opacity: _titleFadeAnim,
+                  child: Text(
+                    'BizSquare',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 26, // Smaller than 96px logo
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+                      letterSpacing: -0.6,
                     ),
                   ),
+                ),
+              ),
 
-                  const SizedBox(height: 16),
+              const SizedBox(height: 8),
 
-                  // 2. Animated BizSquare Text with Subtle Gradient Sweep
-                  AnimatedBuilder(
-                    animation: _shimmerCtrl,
+              // 3. Sequential Flag-Up Entrance: Tagline "Grow Together" (Thin Font Weight & Animated Gradient Text)
+              SlideTransition(
+                position: _taglineSlideAnim,
+                child: FadeTransition(
+                  opacity: _taglineFadeAnim,
+                  child: AnimatedBuilder(
+                    animation: _loopCtrl,
                     builder: (context, child) {
-                      final shimmerPos = _shimmerCtrl.value * 2 - 0.5;
+                      final progress = _loopCtrl.value;
                       return ShaderMask(
+                        blendMode: BlendMode.srcIn, // Text color IS the gradient
                         shaderCallback: (bounds) {
                           return LinearGradient(
-                            colors: isDark
-                                ? const [
-                                    Color(0xFFF8FAFC),
-                                    Color(0xFF60A5FA),
-                                    Color(0xFF34D399),
-                                    Color(0xFFF8FAFC),
-                                  ]
-                                : const [
-                                    Color(0xFF0F172A),
-                                    Color(0xFF0058FF),
-                                    Color(0xFF10B981),
-                                    Color(0xFF0F172A),
-                                  ],
-                            stops: const [0.0, 0.45, 0.55, 1.0],
-                            transform: GradientTranslation(Offset(shimmerPos * bounds.width, 0)),
-                          ).createShader(bounds);
-                        },
-                        child: Text(
-                          'BizSquare',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 32,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: -0.8,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-
-                  const SizedBox(height: 6),
-
-                  // 3. Tagline: "Grow Together" (Thin Font Weight & Animated Gradient Shimmer)
-                  AnimatedBuilder(
-                    animation: _shimmerCtrl,
-                    builder: (context, child) {
-                      final shimmerPos = (_shimmerCtrl.value + 0.3) % 1.0;
-                      return ShaderMask(
-                        shaderCallback: (bounds) {
-                          return LinearGradient(
-                            colors: isDark
-                                ? const [
-                                    Color(0xFF94A3B8),
-                                    Color(0xFFF1F5F9),
-                                    Color(0xFF94A3B8),
-                                  ]
-                                : const [
-                                    Color(0xFF64748B),
-                                    Color(0xFF0F172A),
-                                    Color(0xFF64748B),
-                                  ],
-                            stops: const [0.0, 0.5, 1.0],
-                            transform: GradientTranslation(Offset((shimmerPos * 2 - 1) * bounds.width, 0)),
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            transform: _GradientRotation(progress * 2 * math.pi),
+                            colors: const [
+                              Color(0xFF0058FF),
+                              Color(0xFF10B981),
+                              Color(0xFF7C3AED),
+                              Color(0xFF0058FF),
+                            ],
+                            stops: const [0.0, 0.35, 0.70, 1.0],
                           ).createShader(bounds);
                         },
                         child: Text(
                           'Grow Together',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
-                            fontWeight: FontWeight.w200, // THIN FONT WEIGHT AS REQUESTED
-                            letterSpacing: 4.0, // SPACIOUS & ELEGANT
+                            fontWeight: FontWeight.w200, // THIN FONT WEIGHT
+                            letterSpacing: 3.5, // ELEGANT & SPACIOUS
                             color: Colors.white,
                           ),
                         ),
                       );
                     },
                   ),
-
-                  const SizedBox(height: 48),
-
-                  // 4. Custom Branded BizSquare Animated Loader
-                  const BizSquareLoader(size: 34),
-                ],
+                ),
               ),
-            ),
+
+              const SizedBox(height: 48),
+
+              // 4. Custom Branded BizSquare Animated Loader
+              const BizSquareLoader(size: 32),
+            ],
           ),
         ),
       ),
@@ -316,12 +289,75 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
   }
 }
 
-class GradientTranslation extends GradientTransform {
-  final Offset offset;
-  const GradientTranslation(this.offset);
+/// Custom Painter for 4 Moving Edge Laser Lines around the Square Logo Perimeter
+class _SquarePerimeterLaserPainter extends CustomPainter {
+  final double progress;
+  final bool isDark;
+
+  _SquarePerimeterLaserPainter({required this.progress, required this.isDark});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      const Radius.circular(28),
+    );
+
+    final path = Path()..addRRect(rect);
+    final pathMetrics = path.computeMetrics().first;
+    final totalLength = pathMetrics.length;
+
+    // 4 Edge Segments traveling seamlessly along the square perimeter with zero gaps
+    const segmentCount = 4;
+    final segmentLength = totalLength / segmentCount;
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+
+    final colors = [
+      const Color(0xFF0058FF),
+      const Color(0xFF10B981),
+      const Color(0xFF7C3AED),
+      const Color(0xFFF59E0B),
+    ];
+
+    for (int i = 0; i < segmentCount; i++) {
+      final start = ((progress * totalLength) + (i * segmentLength)) % totalLength;
+      final end = (start + (segmentLength * 0.45)) % totalLength;
+
+      paint.color = colors[i % colors.length];
+
+      if (start < end) {
+        final extractPath = pathMetrics.extractPath(start, end);
+        canvas.drawPath(extractPath, paint);
+      } else {
+        final extractPath1 = pathMetrics.extractPath(start, totalLength);
+        final extractPath2 = pathMetrics.extractPath(0, end);
+        canvas.drawPath(extractPath1, paint);
+        canvas.drawPath(extractPath2, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SquarePerimeterLaserPainter oldDelegate) {
+    return oldDelegate.progress != progress || oldDelegate.isDark != isDark;
+  }
+}
+
+class _GradientRotation extends GradientTransform {
+  final double radians;
+  const _GradientRotation(this.radians);
 
   @override
   Matrix4 transform(Rect bounds, {TextDirection? textDirection}) {
-    return Matrix4.translationValues(offset.dx, offset.dy, 0);
+    final center = bounds.center;
+    final m = Matrix4.identity();
+    m.translateByDouble(center.dx, center.dy, 0.0);
+    m.rotateZ(radians);
+    m.translateByDouble(-center.dx, -center.dy, 0.0);
+    return m;
   }
 }

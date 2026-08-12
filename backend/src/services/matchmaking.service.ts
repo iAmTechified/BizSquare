@@ -1,4 +1,5 @@
 import { pool } from '../db/pool';
+import { NotificationEvents } from './notification.service';
 
 export class MatchmakingService {
   /**
@@ -144,6 +145,27 @@ export class MatchmakingService {
       }
 
       await client.query('COMMIT');
+
+      // Fire CONTACT_GAIN_READY notification per user with their actual contact count.
+      // Dedup key includes batchDate so only one notification fires per weekly cycle.
+      const batchDate = new Date().toISOString().slice(0, 10);
+      setImmediate(async () => {
+        for (const [userId, matchCount] of userMatchCounts.entries()) {
+          if (matchCount > 0) {
+            try {
+              await NotificationEvents.contactGainReady({
+                userId,
+                contactCount: matchCount,
+                cycleId: batchDate,
+                batchDate,
+              });
+            } catch (notifErr) {
+              console.error(`[Matchmaking] Notification failed for user ${userId}:`, notifErr);
+            }
+          }
+        }
+      });
+
       return {
         success: true,
         matchesCreated: finalMatches.length,

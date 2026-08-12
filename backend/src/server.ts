@@ -22,6 +22,7 @@ import contactsRoutes from './routes/contacts.routes';
 import { MatchingEngineService } from './services/matching/matching_engine.service';
 import { DemandService } from './services/demand.service';
 import { InterestStateService } from './services/interest_state.service';
+import { RetentionService } from './services/retention.service';
 
 dotenv.config();
 
@@ -88,6 +89,20 @@ cron.schedule('0 2 * * *', async () => {
     console.log('Demand cleanup done:', result);
   } catch (error) {
     console.error('Demand cleanup failed:', error);
+  }
+}, {
+  timezone: "UTC"
+});
+
+// CRON: Daily Retention Check @ 09:00 UTC
+// Only sends notifications when there is REAL value waiting for the user.
+cron.schedule('0 9 * * *', async () => {
+  console.log('Running Daily Retention Check...');
+  try {
+    const result = await RetentionService.runDailyRetentionCheck();
+    console.log('Retention Check complete:', result);
+  } catch (error) {
+    console.error('Retention Check failed:', error);
   }
 }, {
   timezone: "UTC"

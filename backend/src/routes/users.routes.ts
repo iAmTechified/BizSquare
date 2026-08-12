@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { authenticateJWT, AuthRequest } from '../middleware/auth.middleware';
+import { PushTokenService } from '../services/push_token.service';
 import { pool } from '../db/pool';
 import { NotificationService } from '../services/notification.service';
 
@@ -293,6 +294,50 @@ router.get('/setup-status', authenticateJWT, async (req: AuthRequest, res: Respo
     });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+/**
+ * POST /api/v1/users/push-token
+ * Registers an FCM push token for the authenticated user's device.
+ * Called on login and on token refresh.
+ */
+router.post('/push-token', authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user.id;
+    const { token, platform } = req.body;
+
+    if (!token || typeof token !== 'string') {
+      res.status(400).json({ success: false, error: 'token is required' });
+      return;
+    }
+
+    await PushTokenService.registerToken({
+      userId,
+      token,
+      platform: platform === 'ios' ? 'ios' : 'android',
+    });
+
+    res.json({ success: true, message: 'Push token registered.' });
+  } catch (err: any) {
+    console.error('Error registering push token:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/v1/users/push-token
+ * Deregisters a specific FCM token (on logout or token invalidation).
+ */
+router.delete('/push-token', authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user.id;
+    const { token } = req.body;
+
+    await PushTokenService.deregisterToken({ userId, token });
+    res.json({ success: true, message: 'Push token deregistered.' });
+  } catch (err: any) {
+    console.error('Error deregistering push token:', err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

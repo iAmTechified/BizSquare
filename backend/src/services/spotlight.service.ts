@@ -1,5 +1,5 @@
 import { pool } from '../db/pool';
-import { NotificationService } from './notification.service';
+import { NotificationService, NotificationEvents } from './notification.service';
 
 export interface SpotlightRequirement {
   prompt: string;
@@ -147,6 +147,18 @@ export class SpotlightService {
             avatar_id: candidate.avatar_id,
             primary_offer: candidate.primary_offer,
           };
+
+          // Notify the featured user that it's their Spotlight turn
+          setImmediate(async () => {
+            try {
+              const cycleEndDate = new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString('en-NG', { month: 'short', day: 'numeric' });
+              await NotificationEvents.spotlightTurn({
+                userId: candidate.id,
+                cycleId: newCamp.id,
+                cycleEndDate,
+              });
+            } catch (_) {}
+          });
         }
       }
 
@@ -444,5 +456,44 @@ export class SpotlightService {
         participantCount: parseInt(p.total_participants, 10) || 1,
       })),
     };
+  }
+  /**
+   * Verifies a Spotlight submission (admin action).
+   * Fires SPOTLIGHT_VERIFIED notification with real participant count.
+   */
+  static async verifySubmission(campaignId: string): Promise<{
+    success: boolean;
+    userId: string;
+    participantCount: number;
+  }> {
+    const { rows: [campaign] } = await pool.query(`
+      UPDATE spotlight_campaigns
+      SET submission_status = 'verified', is_active = TRUE
+      WHERE id = $1
+      RETURNING user_id, id, end_date
+    `, [campaignId]);
+
+    if (!campaign) {
+      throw new Error('Campaign not found');
+    }
+
+    const { rows: [{ count: partCount }] } = await pool.query(`
+      SELECT COUNT(*) FROM spotlight_participations WHERE campaign_id = $1
+    `, [campaignId]);
+
+    const participantCount = parseInt(partCount, 10) || 0;
+
+    // Fire SPOTLIGHT_VERIFIED notification with real participant count
+    setImmediate(async () => {
+      try {
+        await NotificationEvents.spotlightVerified({
+          userId: campaign.user_id,
+          cycleId: campaignId,
+          participantCount,
+        });
+      } catch (_) {}
+    });
+
+    return { success: true, userId: campaign.user_id, participantCount };
   }
 }

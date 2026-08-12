@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { authenticateJWT, AuthRequest } from '../middleware/auth.middleware';
 import { NotificationService } from '../services/notification.service';
+import { PushService } from '../services/push.service';
 
 const router = Router();
 

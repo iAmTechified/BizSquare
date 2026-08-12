@@ -8,7 +8,7 @@ import { PointsLedger } from './components/PointsLedger';
 import { LoginPage } from './components/LoginPage';
 import { getToken, clearToken } from './api/adminApi';
 import {
-  Shield, Moon, Sun, Zap, Users, Sparkles,
+  Zap, Users, Sparkles,
   Star, Coins, LayoutDashboard, LogOut, Activity
 } from 'lucide-react';
 import './index.css';
@@ -65,7 +65,7 @@ function Sidebar({
       {/* Logo */}
       <div className="sidebar-logo">
         <div className="sidebar-logo-icon">
-          <Shield size={17} color="#fff" />
+          <img src="/logo.png" alt="BizSquare" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         </div>
         <span className="sidebar-logo-text">BizSquare</span>
         <span className="sidebar-logo-badge">Admin</span>
@@ -132,14 +132,10 @@ const SECTION_TITLES: Record<Section, { label: string; desc: string }> = {
 
 function Topbar({
   section,
-  theme,
-  onToggleTheme,
 }: {
   section: Section;
-  theme: string;
-  onToggleTheme: () => void;
 }) {
-  const { label, desc } = SECTION_TITLES[section];
+  const { label } = SECTION_TITLES[section];
 
   return (
     <header className="topbar">
@@ -153,17 +149,13 @@ function Topbar({
         {/* Live indicator */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 6,
-          fontSize: 12, fontWeight: 600, color: 'var(--success)',
-          background: 'var(--success-dim)', padding: '4px 10px',
-          borderRadius: 99,
+          fontSize: 12, fontWeight: 700, color: 'var(--brand-green)',
+          background: 'var(--brand-green-dim)', padding: '4px 10px',
+          borderRadius: 99, border: '1px solid rgba(90,255,0,0.15)',
         }}>
           <Activity size={11} />
           Live
         </div>
-
-        <button className="topbar-btn" onClick={onToggleTheme} title="Toggle theme">
-          {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
-        </button>
       </div>
     </header>
   );
@@ -221,14 +213,12 @@ function PageContent({ section }: { section: Section }) {
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => !!getToken());
   const [section, setSection] = useState<Section>('overview');
-  const [theme, setTheme] = useState(() =>
-    localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-  );
 
+  // Always dark — set once on mount
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
-  }, [theme]);
+    document.documentElement.setAttribute('data-theme', 'dark');
+    document.documentElement.style.colorScheme = 'dark';
+  }, []);
 
   const handleLogout = () => {
     clearToken();
@@ -248,11 +238,7 @@ function App() {
       />
 
       <div className="main-wrapper">
-        <Topbar
-          section={section}
-          theme={theme}
-          onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
-        />
+        <Topbar section={section} />
 
         <main className="page-content" key={section}>
           <PageContent section={section} />

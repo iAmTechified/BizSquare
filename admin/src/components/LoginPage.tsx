@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react';
 import { setToken } from '../api/adminApi';
 
 interface LoginPageProps {
@@ -37,11 +37,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       <div className="login-card">
         <div className="login-logo">
           <div className="login-logo-icon">
-            <Shield size={22} color="#fff" />
+            <img src="/logo.png" alt="BizSquare" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }} />
           </div>
           <div>
-            <div className="login-logo-text">BizSquare Admin</div>
-            <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 500 }}>Akawo Platform Control Panel</div>
+            <div className="login-logo-text">BizSquare</div>
+            <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Akawo Platform · Admin</div>
           </div>
         </div>
 

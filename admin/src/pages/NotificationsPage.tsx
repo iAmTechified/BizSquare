@@ -1,327 +1,359 @@
-import React, { useState, useEffect } from 'react';
-import { Hugeicon } from '../components/common/Hugeicon';
-import { NotificationAdminApi } from '../api/notificationAdminApi';
-import type { AdminNotificationPayload, NotificationHistoryItem } from '../api/notificationAdminApi';
+import React, { useEffect, useState, useCallback } from 'react';
+import {
+  adminAuthApi,
+  AdminNotificationBroadcastPayload,
+  NotificationTemplateItem,
+  ScheduledNotificationItem,
+  SentNotificationItem,
+} from '../api/adminAuthApi';
+import { useAdminAuth } from '../context/AdminAuthContext';
 import { useToast } from '../context/ToastContext';
+import { useConfirmation } from '../context/ConfirmationContext';
+import { GlobalLoadingState } from '../components/common/GlobalLoadingState';
+import { GlobalEmptyState } from '../components/common/GlobalEmptyState';
+import { Hugeicon } from '../components/common/Hugeicon';
+import { NotificationConfirmationModal } from '../components/notifications/NotificationConfirmationModal';
 
-type TabType = 'compose' | 'scheduled' | 'sent' | 'history';
-type DevicePreviewType = 'ios' | 'android';
-
-const APPROVED_DEEP_LINKS = [
-  { label: 'Home Dashboard', value: 'bizsquare://home' },
-  { label: 'All Contacts', value: 'bizsquare://contacts' },
+const APPROVED_DESTINATIONS = [
+  { label: 'Home Page', value: 'bizsquare://home' },
   { label: 'Square Contacts', value: 'bizsquare://contacts/square' },
-  { label: 'Spotlight Feature', value: 'bizsquare://spotlight' },
-  { label: 'Spotlight Turn Submission', value: 'bizsquare://spotlight/turn' },
+  { label: 'Spotlight Showcase', value: 'bizsquare://spotlight' },
   { label: 'Spotlight History', value: 'bizsquare://spotlight/history' },
-  { label: 'Permission Settings', value: 'bizsquare://settings/permissions' },
   { label: 'User Profile', value: 'bizsquare://profile' },
+  { label: 'Permission Setup', value: 'bizsquare://permissions' },
 ];
 
+const ALLOWED_VARIABLES = ['{{firstName}}', '{{newContactCount}}', '{{spotlightDate}}', '{{contactCount}}'];
+
 export const NotificationsPage: React.FC = () => {
+  const { hasPermission } = useAdminAuth();
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState<TabType>('compose');
-  const [devicePreview, setDevicePreview] = useState<DevicePreviewType>('ios');
+  const { confirm } = useConfirmation();
+
+  const canSend = hasPermission('notifications.send');
+
+  const [activeTab, setActiveTab] = useState<'compose' | 'scheduled' | 'sent' | 'history'>('compose');
 
   // Form State
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
-  const [category, setCategory] = useState<'CONTACT_GAIN' | 'SPOTLIGHT' | 'DAILY_PULSE' | 'SYSTEM'>('SYSTEM');
-  const [visualVariant, setVisualVariant] = useState<'ANNOUNCEMENT' | 'SPOTLIGHT' | 'CONTACT_GAIN' | 'UPDATE' | 'IMPORTANT' | 'CELEBRATION'>('ANNOUNCEMENT');
-  const [soundVariant, setSoundVariant] = useState<'DEFAULT' | 'URGENT' | 'CHIME' | 'SPOTLIGHT_TURN'>('DEFAULT');
-  const [ctaText, setCtaText] = useState('Open App');
-  const [deepLink, setDeepLink] = useState('bizsquare://home');
-  const [audience, setAudience] = useState('all');
-  const [targetUserId, setTargetUserId] = useState('');
-  const [scheduledAt, setScheduledAt] = useState('');
-  const [expiresInHours, setExpiresInHours] = useState(72);
+  const [title, setTitle] = useState<string>('');
+  const [body, setBody] = useState<string>('');
+  const [category, setCategory] = useState<'ANNOUNCEMENT' | 'SPOTLIGHT' | 'CONTACT_GAIN' | 'UPDATE' | 'IMPORTANT' | 'CELEBRATION'>('ANNOUNCEMENT');
+  const [visualVariant, setVisualVariant] = useState<'DEFAULT' | 'HIGHLIGHT' | 'ALERT' | 'SUCCESS' | 'GOLD'>('DEFAULT');
+  const [soundVariant, setSoundVariant] = useState<'DEFAULT' | 'URGENT' | 'CHIME'>('DEFAULT');
+  const [destination, setDestination] = useState<string>('bizsquare://home');
+  const [audienceType, setAudienceType] = useState<'ALL' | 'NEW_USERS' | 'INCOMPLETE_SETUP' | 'SPOTLIGHT_USERS' | 'CONTACT_GAIN_USERS' | 'INDIVIDUAL'>('ALL');
+  const [individualUserId, setIndividualUserId] = useState<string>('');
+  const [isScheduled, setIsScheduled] = useState<boolean>(false);
+  const [scheduledAt, setScheduledAt] = useState<string>('');
 
-  // Recipient Counter State
+  // Data & Estimate State
+  const [templates, setTemplates] = useState<NotificationTemplateItem[]>([]);
+  const [scheduled, setScheduled] = useState<ScheduledNotificationItem[]>([]);
+  const [sent, setSent] = useState<SentNotificationItem[]>([]);
   const [estimatedRecipients, setEstimatedRecipients] = useState<number>(0);
-  const [isCounting, setIsCounting] = useState(false);
 
-  // Confirmation Modal State
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [broadcastConfirmed, setBroadcastConfirmed] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [submitting, setSubmitting] = useState<boolean>(false);
+  const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
-  // History State
-  const [historyItems, setHistoryItems] = useState<NotificationHistoryItem[]>([]);
-  const [metrics, setMetrics] = useState({ totalSent: 0, totalDelivered: 0, totalOpened: 0, totalActioned: 0 });
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-
-  // Fetch estimated recipient count on audience change
-  useEffect(() => {
-    let isMounted = true;
-    const fetchCount = async () => {
-      setIsCounting(true);
-      try {
-        const count = await NotificationAdminApi.getRecipientCount(audience, targetUserId);
-        if (isMounted) setEstimatedRecipients(count);
-      } catch (_) {
-        if (isMounted) setEstimatedRecipients(0);
-      } finally {
-        if (isMounted) setIsCounting(false);
-      }
-    };
-    fetchCount();
-    return () => { isMounted = false; };
-  }, [audience, targetUserId]);
-
-  // Load history data
-  const loadHistory = async () => {
-    setIsLoadingHistory(true);
+  // Fetch initial templates & backend estimate
+  const loadInitialData = useCallback(async () => {
+    setLoading(true);
     try {
-      const data = await NotificationAdminApi.getNotificationHistory();
-      setHistoryItems(data.history || []);
-      setMetrics(data.metrics || { totalSent: 0, totalDelivered: 0, totalOpened: 0, totalActioned: 0 });
-    } catch (_) {
-      showToast({ title: 'Failed to load notification history', type: 'error' });
+      const [resTemplates, resEstimate, resScheduled, resSent] = await Promise.all([
+        adminAuthApi.getNotificationTemplates().catch(() => ({ success: true, templates: [] })),
+        adminAuthApi.getNotificationRecipientEstimate(audienceType, individualUserId).catch(() => ({ success: true, audience_type: 'ALL', estimated_count: 0 })),
+        adminAuthApi.getScheduledNotifications().catch(() => ({ success: true, scheduled: [] })),
+        adminAuthApi.getSentNotifications(20, 0).catch(() => ({ success: true, sent: [] })),
+      ]);
+
+      setTemplates(resTemplates.templates || []);
+      setEstimatedRecipients(resEstimate.estimated_count || 0);
+      setScheduled(resScheduled.scheduled || []);
+      setSent(resSent.sent || []);
+    } catch (err: any) {
+      console.error('Failed to load notification composer data:', err);
     } finally {
-      setIsLoadingHistory(false);
+      setLoading(false);
     }
+  }, [audienceType, individualUserId]);
+
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
+  // Recalculate recipient estimate whenever audience selection changes
+  useEffect(() => {
+    adminAuthApi
+      .getNotificationRecipientEstimate(audienceType, individualUserId)
+      .then((res) => setEstimatedRecipients(res.estimated_count || 0))
+      .catch(() => setEstimatedRecipients(0));
+  }, [audienceType, individualUserId]);
+
+  // Apply template defaults
+  const handleSelectTemplate = (t: NotificationTemplateItem) => {
+    setTitle(t.default_title);
+    setBody(t.default_body);
+    setCategory(t.category as any);
+    setVisualVariant(t.visual_variant as any);
+    setSoundVariant(t.sound_variant as any);
+    setDestination(t.default_destination);
+    setValidationError(null);
+    showToast({
+      type: 'info',
+      title: 'Template Loaded',
+      message: `Loaded template: "${t.name}".`,
+    });
   };
 
-  useEffect(() => {
-    if (activeTab === 'history' || activeTab === 'sent' || activeTab === 'scheduled') {
-      loadHistory();
-    }
-  }, [activeTab]);
+  // Live variable validation
+  const validateForm = (): boolean => {
+    setValidationError(null);
 
-  // Handle Send Confirmation
+    if (!title.trim()) {
+      setValidationError('Notification title is required.');
+      return false;
+    }
+    if (!body.trim()) {
+      setValidationError('Notification body text is required.');
+      return false;
+    }
+
+    const fullText = `${title} ${body}`;
+    const variableMatches = fullText.match(/\{\{[^}]+\}\}/g) || [];
+    for (const match of variableMatches) {
+      if (!ALLOWED_VARIABLES.includes(match)) {
+        setValidationError(`Unsupported variable "${match}". Allowed variables are: ${ALLOWED_VARIABLES.join(', ')}`);
+        return false;
+      }
+    }
+
+    if (isScheduled && !scheduledAt) {
+      setValidationError('Please select a valid future date and time for scheduled send.');
+      return false;
+    }
+
+    return true;
+  };
+
   const handleOpenConfirm = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !body.trim()) {
-      showToast({ title: 'Please enter a notification title and body.', type: 'warning' });
-      return;
-    }
+    if (!validateForm()) return;
     setShowConfirmModal(true);
   };
 
-  const handleConfirmSend = async () => {
-    setIsSubmitting(true);
+  const handleExecuteSend = async () => {
+    setSubmitting(true);
     try {
-      const payload: AdminNotificationPayload = {
+      const payload: AdminNotificationBroadcastPayload = {
         title: title.trim(),
         body: body.trim(),
         category,
-        visualVariant,
-        soundVariant,
-        ctaText,
-        deepLink,
-        audience,
-        targetUserId: audience === 'individual' ? targetUserId : undefined,
-        scheduledAt: scheduledAt || undefined,
-        expiresInHours,
+        visual_variant: visualVariant,
+        sound_variant: soundVariant,
+        destination,
+        audience_type: audienceType,
+        individual_user_id: audienceType === 'INDIVIDUAL' ? individualUserId : undefined,
+        scheduled_at: isScheduled ? new Date(scheduledAt).toISOString() : undefined,
       };
 
-      const res = await NotificationAdminApi.sendNotification(payload);
-      showToast({ title: res.message, type: 'success' });
+      const res = await adminAuthApi.sendAdminNotification(payload);
+
+      showToast({
+        type: 'success',
+        title: res.is_scheduled ? 'Broadcast Scheduled' : 'Broadcast Sent',
+        message: res.message,
+      });
+
       setShowConfirmModal(false);
+      // Reset form
       setTitle('');
       setBody('');
-      setActiveTab('sent');
+      setIsScheduled(false);
+      setScheduledAt('');
+      loadInitialData();
     } catch (err: any) {
-      showToast({ title: err.message || 'Failed to dispatch notification', type: 'error' });
+      console.error('Send broadcast error:', err);
+      showToast({
+        type: 'error',
+        title: 'Broadcast Execution Error',
+        message: err.message || 'Failed to send broadcast notification.',
+      });
     } finally {
-      setIsSubmitting(false);
+      setSubmitting(false);
     }
   };
 
-  const handleCancelScheduled = async (id: string) => {
-    try {
-      const success = await NotificationAdminApi.cancelScheduledNotification(id);
-      if (success) {
-        showToast({ title: 'Scheduled notification cancelled', type: 'success' });
-        loadHistory();
-      }
-    } catch (_) {
-      showToast({ title: 'Failed to cancel scheduled notification', type: 'error' });
-    }
+  const handleCancelScheduled = (item: ScheduledNotificationItem) => {
+    confirm({
+      title: `Cancel Scheduled Broadcast: "${item.title}"`,
+      description: 'Are you sure you want to cancel this scheduled notification?',
+      consequence: 'It will be removed from the pending queue and will not be delivered to recipients.',
+      isDestructive: true,
+      confirmLabel: 'Yes, Cancel Broadcast',
+      onConfirm: async () => {
+        const res = await adminAuthApi.cancelScheduledNotification(item.id);
+        showToast({ type: 'success', title: 'Broadcast Cancelled', message: res.message });
+        loadInitialData();
+      },
+    });
   };
 
-  // Sample data preview replacement for personalization
+  // Preview variable substitution with sample data
   const renderPreviewText = (text: string) => {
     return text
-      .replace(/\{\{firstName\}\}/g, 'Ade')
-      .replace(/\{\{newContactCount\}\}/g, '8')
-      .replace(/\{\{spotlightDate\}\}/g, 'Sunday')
-      .replace(/\{\{contactCount\}\}/g, '24');
+      .replace(/\{\{firstName\}\}/g, 'Alex')
+      .replace(/\{\{newContactCount\}\}/g, '12')
+      .replace(/\{\{spotlightDate\}\}/g, 'Friday')
+      .replace(/\{\{contactCount\}\}/g, '184');
   };
 
-  const filteredHistory = historyItems.filter((item) => {
-    if (activeTab === 'scheduled') return item.status === 'PENDING';
-    if (activeTab === 'sent') return item.status === 'SENT';
-    return true;
-  });
+  if (loading && templates.length === 0 && scheduled.length === 0 && sent.length === 0) {
+    return <GlobalLoadingState type="page" message="Loading unified Notification Composer & Templates…" />;
+  }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Hugeicon name="notifications" size={26} />
-            Notification Composer
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Create, personalize, schedule, and broadcast notifications directly to production users.
-          </p>
-        </div>
-
-        {/* Tab Switcher */}
-        <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700/60">
-          {(['compose', 'scheduled', 'sent', 'history'] as TabType[]).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 text-xs font-semibold rounded-lg capitalize transition-all ${
-                activeTab === tab
-                  ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Metrics Header */}
-      {(activeTab === 'history' || activeTab === 'sent') && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-4 rounded-xl bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
-            <span className="text-xs text-slate-500 dark:text-slate-400">Total Sent</span>
-            <div className="text-2xl font-black text-slate-900 dark:text-white">{metrics.totalSent}</div>
-          </div>
-          <div className="p-4 rounded-xl bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
-            <span className="text-xs text-slate-500 dark:text-slate-400">Delivered</span>
-            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{metrics.totalDelivered}</div>
-          </div>
-          <div className="p-4 rounded-xl bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
-            <span className="text-xs text-slate-500 dark:text-slate-400">Opened</span>
-            <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{metrics.totalOpened}</div>
-          </div>
-          <div className="p-4 rounded-xl bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
-            <span className="text-xs text-slate-500 dark:text-slate-400">Actioned</span>
-            <div className="text-2xl font-black text-violet-600 dark:text-violet-400">{metrics.totalActioned}</div>
-          </div>
-        </div>
+    <div className="flex flex-col gap-6 fade-up">
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <NotificationConfirmationModal
+          payload={{
+            title,
+            body,
+            category,
+            visual_variant: visualVariant,
+            sound_variant: soundVariant,
+            destination,
+            audience_type: audienceType,
+            individual_user_id: individualUserId,
+            scheduled_at: isScheduled ? scheduledAt : undefined,
+          }}
+          estimatedRecipients={estimatedRecipients}
+          submitting={submitting}
+          onClose={() => setShowConfirmModal(false)}
+          onConfirm={handleExecuteSend}
+        />
       )}
 
-      {/* Main Content Area */}
-      {activeTab === 'compose' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Left Form: 7 cols */}
-          <form onSubmit={handleOpenConfirm} className="lg:col-span-7 space-y-6 bg-white dark:bg-slate-800/60 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/60">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white border-b pb-3 border-slate-100 dark:border-slate-700/40">
-              Notification Details
-            </h2>
+      {/* Page Header */}
+      <div className="page-header">
+        <div className="page-header-left">
+          <h1 className="page-title">Notification Composer & Broadcasts</h1>
+          <p className="page-subtitle">Compose, schedule, and track network notification broadcasts.</p>
+        </div>
 
-            {/* Audience */}
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
-                Audience Segment
-              </label>
-              <select
-                value={audience}
-                onChange={(e) => setAudience(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="all">All Active Users</option>
-                <option value="new">New Users (Last 7 Days)</option>
-                <option value="active">Active Users (Last 14 Days)</option>
-                <option value="inactive">Inactive Users</option>
-                <option value="spotlight">Spotlight Turn Users</option>
-                <option value="contact_gain">Contact Gain Users</option>
-                <option value="incomplete_setup">Incomplete Setup Users</option>
-                <option value="individual">Individual User ID</option>
-              </select>
-            </div>
+        <button type="button" className="btn btn-secondary" onClick={loadInitialData}>
+          <Hugeicon name="refresh" className={loading ? 'animate-spin' : ''} size={14} />
+          Refresh
+        </button>
+      </div>
 
-            {audience === 'individual' && (
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
-                  Recipient User ID
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000"
-                  value={targetUserId}
-                  onChange={(e) => setTargetUserId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-            )}
+      {/* TABS */}
+      <div className="tab-list">
+        <button
+          type="button"
+          className={`tab-btn ${activeTab === 'compose' ? 'active' : ''}`}
+          onClick={() => setActiveTab('compose')}
+        >
+          <Hugeicon name="send" size={14} />
+          Compose
+        </button>
+        <button
+          type="button"
+          className={`tab-btn ${activeTab === 'scheduled' ? 'active' : ''}`}
+          onClick={() => setActiveTab('scheduled')}
+        >
+          <Hugeicon name="schedule" size={14} />
+          Scheduled ({scheduled.length})
+        </button>
+        <button
+          type="button"
+          className={`tab-btn ${activeTab === 'sent' ? 'active' : ''}`}
+          onClick={() => setActiveTab('sent')}
+        >
+          <Hugeicon name="audit" size={14} />
+          Sent History ({sent.length})
+        </button>
+      </div>
 
-            {/* Estimated Recipient Badge */}
-            <div className="flex items-center gap-2 p-3 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl border border-indigo-200 dark:border-indigo-800/40 text-xs text-indigo-700 dark:text-indigo-300">
-              <Hugeicon name="users" size={16} />
-              <span>
-                Estimated Target Audience:{' '}
-                <strong>{isCounting ? 'Calculating...' : `${estimatedRecipients} real user(s)`}</strong>
+      {/* SECTION 1: COMPOSE */}
+      {activeTab === 'compose' && (
+        <div className="grid-2 gap-6 fade-up">
+          {/* Form Side */}
+          <form onSubmit={handleOpenConfirm} className="card flex flex-col gap-4">
+            <div className="card-header flex justify-between items-center">
+              <span className="card-title">
+                <Hugeicon name="send" size={16} state="active" />
+                Notification Composer
+              </span>
+              <span className="badge badge-blue">
+                Estimated Recipients: {estimatedRecipients}
               </span>
             </div>
 
+            {/* Approved Templates */}
+            {templates.length > 0 && (
+              <div className="form-group">
+                <label className="form-label text-xs text-secondary font-bold uppercase mb-1">Load Approved Template</label>
+                <div className="flex flex-wrap gap-2">
+                  {templates.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      className="btn btn-xs btn-secondary"
+                      onClick={() => handleSelectTemplate(t)}
+                    >
+                      <Hugeicon name="file" size={12} />
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Title */}
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
-                Notification Title
-              </label>
+            <div className="form-group">
+              <label className="form-label">Notification Title</label>
               <input
                 type="text"
-                placeholder="e.g. Hello {{firstName}}, your new contacts are ready!"
+                className="form-control"
+                placeholder="e.g. BizSquare Weekly Network Pulse"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                maxLength={100}
                 required
               />
+              <div className="flex justify-between text-xs text-tertiary mt-1">
+                <span>Supports variables: {ALLOWED_VARIABLES.join(', ')}</span>
+                <span>{title.length}/100</span>
+              </div>
             </div>
 
             {/* Body */}
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
-                Notification Body
-              </label>
+            <div className="form-group">
+              <label className="form-label">Body Content</label>
               <textarea
-                rows={3}
-                placeholder="e.g. You have {{newContactCount}} new verified contacts waiting in your Square network."
+                className="form-control"
+                placeholder="Hi {{firstName}}, check out your new business connections and status updates this week!"
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                rows={4}
                 required
               />
-              <p className="text-[11px] text-slate-400 mt-1">
-                Supported variables: <code>{'{{firstName}}'}</code>, <code>{'{{newContactCount}}'}</code>, <code>{'{{spotlightDate}}'}</code>, <code>{'{{contactCount}}'}</code>.
-              </p>
+              <div className="text-xs text-tertiary mt-1">
+                Variable validation enabled. Unknown variables will block send.
+              </div>
             </div>
 
             {/* Category & Visual Variant */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
-                  Category
-                </label>
+            <div className="grid-2 gap-4">
+              <div className="form-group">
+                <label className="form-label">Category</label>
                 <select
+                  className="form-control"
                   value={category}
                   onChange={(e) => setCategory(e.target.value as any)}
-                  className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="SYSTEM">SYSTEM (Non-disableable)</option>
-                  <option value="CONTACT_GAIN">CONTACT_GAIN</option>
-                  <option value="SPOTLIGHT">SPOTLIGHT</option>
-                  <option value="DAILY_PULSE">DAILY_PULSE</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
-                  Visual Variant (Section 7)
-                </label>
-                <select
-                  value={visualVariant}
-                  onChange={(e) => setVisualVariant(e.target.value as any)}
-                  className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="ANNOUNCEMENT">ANNOUNCEMENT</option>
                   <option value="SPOTLIGHT">SPOTLIGHT</option>
@@ -331,333 +363,309 @@ export const NotificationsPage: React.FC = () => {
                   <option value="CELEBRATION">CELEBRATION</option>
                 </select>
               </div>
-            </div>
 
-            {/* Sound Variant & Deep Link */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
-                  Sound Mapping
-                </label>
+              <div className="form-group">
+                <label className="form-label">Visual Variant</label>
                 <select
-                  value={soundVariant}
-                  onChange={(e) => setSoundVariant(e.target.value as any)}
-                  className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="form-control"
+                  value={visualVariant}
+                  onChange={(e) => setVisualVariant(e.target.value as any)}
                 >
-                  <option value="DEFAULT">DEFAULT (General chime)</option>
-                  <option value="URGENT">URGENT (Action alert)</option>
-                  <option value="CHIME">CHIME (Success tone)</option>
-                  <option value="SPOTLIGHT_TURN">SPOTLIGHT_TURN (Spotlight Ring)</option>
+                  <option value="DEFAULT">DEFAULT (Standard)</option>
+                  <option value="HIGHLIGHT">HIGHLIGHT (Brand Blue)</option>
+                  <option value="ALERT">ALERT (Warning Red)</option>
+                  <option value="SUCCESS">SUCCESS (Green Accent)</option>
+                  <option value="GOLD">GOLD (Spotlight Feature)</option>
                 </select>
               </div>
+            </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
-                  Approved Deep Link (Section 5)
-                </label>
+            {/* Destination & Audience */}
+            <div className="grid-2 gap-4">
+              <div className="form-group">
+                <label className="form-label">Approved Deep Link Destination</label>
                 <select
-                  value={deepLink}
-                  onChange={(e) => setDeepLink(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="form-control"
+                  value={destination}
+                  onChange={(e) => setDestination(e.target.value)}
                 >
-                  {APPROVED_DEEP_LINKS.map((link) => (
-                    <option key={link.value} value={link.value}>
-                      {link.label} ({link.value})
+                  {APPROVED_DESTINATIONS.map((d) => (
+                    <option key={d.value} value={d.value}>
+                      {d.label} ({d.value})
                     </option>
                   ))}
                 </select>
               </div>
+
+              <div className="form-group">
+                <label className="form-label">Target Audience</label>
+                <select
+                  className="form-control"
+                  value={audienceType}
+                  onChange={(e) => setAudienceType(e.target.value as any)}
+                >
+                  <option value="ALL">All Active Users</option>
+                  <option value="NEW_USERS">New Users (Last 7 Days)</option>
+                  <option value="INCOMPLETE_SETUP">Incomplete Setup Users</option>
+                  <option value="SPOTLIGHT_USERS">Spotlight Participants</option>
+                  <option value="CONTACT_GAIN_USERS">Contact Gain Users</option>
+                  <option value="INDIVIDUAL">Individual User</option>
+                </select>
+              </div>
             </div>
 
-            {/* CTA & Schedule */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
-                  Button CTA Text
-                </label>
+            {/* Individual User Search if applicable */}
+            {audienceType === 'INDIVIDUAL' && (
+              <div className="form-group">
+                <label className="form-label">Target User ID</label>
                 <input
                   type="text"
-                  value={ctaText}
-                  onChange={(e) => setCtaText(e.target.value)}
-                  placeholder="e.g. Open Spotlight"
-                  className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="form-control"
+                  placeholder="Enter User UUID..."
+                  value={individualUserId}
+                  onChange={(e) => setIndividualUserId(e.target.value)}
+                  required
                 />
               </div>
+            )}
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
-                  Schedule Send (Optional)
-                </label>
-                <input
-                  type="datetime-local"
-                  value={scheduledAt}
-                  onChange={(e) => setScheduledAt(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-            </div>
-
-            {/* Expiration */}
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
-                Expiration (Hours)
-              </label>
-              <input
-                type="number"
-                value={expiresInHours}
-                onChange={(e) => setExpiresInHours(parseInt(e.target.value, 10) || 72)}
-                className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition-all shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2"
+            {/* Scheduling Toggle */}
+            <div
+              style={{
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '0.75rem',
+              }}
+              className="flex flex-col gap-2"
             >
-              <Hugeicon name="spotlight" size={18} />
-              Review & Broadcast Notification
-            </button>
+              <label className="flex items-center gap-2 cursor-pointer font-bold text-sm">
+                <input
+                  type="checkbox"
+                  checked={isScheduled}
+                  onChange={(e) => setIsScheduled(e.target.checked)}
+                />
+                Schedule Broadcast for Future Delivery
+              </label>
+
+              {isScheduled && (
+                <div className="form-group mt-2">
+                  <label className="form-label text-xs">Scheduled Date & Time</label>
+                  <input
+                    type="datetime-local"
+                    className="form-control"
+                    value={scheduledAt}
+                    onChange={(e) => setScheduledAt(e.target.value)}
+                    required={isScheduled}
+                  />
+                </div>
+              )}
+            </div>
+
+            {validationError && (
+              <div className="alert alert-error">
+                <Hugeicon name="error" state="error" size={16} />
+                <span>{validationError}</span>
+              </div>
+            )}
+
+            {canSend && (
+              <button type="submit" className="btn btn-primary mt-2">
+                <Hugeicon name="send" size={14} />
+                {isScheduled ? 'Review & Schedule Broadcast' : 'Review & Send Broadcast'}
+              </button>
+            )}
           </form>
 
-          {/* Right Live Device Preview: 5 cols (Section 6) */}
-          <div className="lg:col-span-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                Live Device Preview
-              </h3>
-              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700">
-                <button
-                  onClick={() => setDevicePreview('ios')}
-                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
-                    devicePreview === 'ios' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500'
-                  }`}
-                >
-                  iOS
-                </button>
-                <button
-                  onClick={() => setDevicePreview('android')}
-                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
-                    devicePreview === 'android' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500'
-                  }`}
-                >
-                  Android
-                </button>
+          {/* Real-time Device Preview Side */}
+          <div className="flex flex-col gap-4">
+            <div className="card">
+              <div className="card-header">
+                <span className="card-title">
+                  <Hugeicon name="mobile" size={16} state="active" />
+                  Live Mobile Notification Preview
+                </span>
+                <span className="badge badge-gray text-xs">PREVIEW</span>
               </div>
-            </div>
-
-            {/* Device Mock Card */}
-            <div className="p-6 bg-slate-900 rounded-3xl border border-slate-800 shadow-2xl space-y-4">
-              <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono">
-                <span>{devicePreview.toUpperCase()} Lock Screen</span>
-                <span>BizSquare Push</span>
-              </div>
-
-              {/* Push Card */}
-              <div className="p-4 rounded-2xl bg-slate-800/90 border border-slate-700/80 shadow-xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-md bg-indigo-600 flex items-center justify-center text-white font-bold text-[10px]">
-                      BS
+              <div className="card-body flex justify-center p-6" style={{ background: '#0a0d14' }}>
+                {/* Mobile Notification Card Mockup */}
+                <div
+                  style={{
+                    width: '100%',
+                    maxWidth: 340,
+                    background: 'rgba(22, 27, 38, 0.95)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    borderRadius: 16,
+                    padding: 14,
+                    boxShadow: '0 12px 32px rgba(0,0,0,0.6)',
+                  }}
+                  className="flex flex-col gap-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: 6,
+                          background: 'linear-gradient(135deg, var(--brand-pink), var(--brand-blue))',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#fff',
+                          fontWeight: 800,
+                          fontSize: 10,
+                        }}
+                      >
+                        B
+                      </div>
+                      <span className="text-xs font-bold text-primary">BIZSQUARE</span>
                     </div>
-                    <span className="text-xs font-bold text-white">BizSquare</span>
+
+                    <span className="text-xs text-tertiary">now</span>
                   </div>
-                  <span className="text-[10px] text-slate-400">now</span>
-                </div>
 
-                <div className="space-y-1">
-                  <h4 className="text-sm font-bold text-white leading-tight">
-                    {renderPreviewText(title || 'Notification Title Preview')}
-                  </h4>
-                  <p className="text-xs text-slate-300 leading-normal">
-                    {renderPreviewText(body || 'Notification body content preview with personalization variable substitution.')}
-                  </p>
-                </div>
+                  <div>
+                    <div className="font-bold text-sm text-primary mb-0.5">
+                      {title ? renderPreviewText(title) : 'Notification Title Preview'}
+                    </div>
+                    <p className="text-xs text-secondary line-clamp-3">
+                      {body ? renderPreviewText(body) : 'Your notification content will be rendered here with live personalized variables.'}
+                    </p>
+                  </div>
 
-                {/* Variant & Sound Badges */}
-                <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-700/60">
-                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                    {visualVariant}
-                  </span>
-                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    🔊 {soundVariant}
-                  </span>
-                </div>
-
-                {/* Action CTA */}
-                <div className="pt-1">
-                  <div className="w-full py-1.5 bg-indigo-600/80 hover:bg-indigo-600 text-white font-bold text-xs rounded-xl text-center">
-                    {ctaText || 'Open App'}
+                  <div className="flex justify-between items-center pt-2 mt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                    <span className="badge badge-blue text-xs">{category}</span>
+                    <span className="text-xs text-tertiary font-mono">{destination}</span>
                   </div>
                 </div>
-              </div>
-
-              <div className="text-[11px] text-slate-400 space-y-1 pt-2">
-                <div>Deep Link: <code className="text-indigo-400">{deepLink}</code></div>
-                <div>Category: <code className="text-indigo-400">{category}</code></div>
               </div>
             </div>
-          </div>
-        </div>
-      ) : (
-        /* History / Scheduled / Sent Table */
-        <div className="bg-white dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/60 overflow-hidden shadow-xs">
-          <div className="p-4 border-b border-slate-100 dark:border-slate-700/40 flex justify-between items-center">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-              {activeTab} Notifications ({filteredHistory.length})
-            </h3>
-            <button
-              onClick={loadHistory}
-              className="px-3 py-1.5 text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-200 transition-all"
-            >
-              Refresh
-            </button>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
-                  <th className="p-3">Recipient</th>
-                  <th className="p-3">Title & Body</th>
-                  <th className="p-3">Category</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3">Created</th>
-                  {activeTab === 'scheduled' && <th className="p-3">Action</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/40">
-                {isLoadingHistory ? (
-                  <tr>
-                    <td colSpan={6} className="p-8 text-center text-slate-500">
-                      Loading notification history...
-                    </td>
-                  </tr>
-                ) : filteredHistory.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="p-8 text-center text-slate-500">
-                      No notifications found for this view.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredHistory.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30">
-                      <td className="p-3 font-semibold text-slate-900 dark:text-white">
-                        {item.recipientName}
-                        <div className="text-[10px] text-slate-400 font-normal">{item.recipientBusiness}</div>
-                      </td>
-                      <td className="p-3">
-                        <div className="font-bold text-slate-800 dark:text-slate-200">{item.title}</div>
-                        <div className="text-slate-500 dark:text-slate-400 line-clamp-1">{item.body}</div>
-                      </td>
-                      <td className="p-3">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
-                          {item.category}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            item.status === 'SENT'
-                              ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400'
-                              : item.status === 'PENDING'
-                              ? 'bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400'
-                              : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                          }`}
-                        >
-                          {item.status}
-                        </span>
-                      </td>
-                      <td className="p-3 text-slate-500">
-                        {new Date(item.createdAt).toLocaleString()}
-                      </td>
-                      {activeTab === 'scheduled' && (
-                        <td className="p-3">
-                          <button
-                            onClick={() => handleCancelScheduled(item.id)}
-                            className="px-2.5 py-1 bg-red-50 text-red-600 hover:bg-red-100 rounded-md text-[11px] font-bold"
-                          >
-                            Cancel
-                          </button>
-                        </td>
-                      )}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
           </div>
         </div>
       )}
 
-      {/* Send Safety Confirmation Modal (Section 8) */}
-      {showConfirmModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-5">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white border-b pb-3 border-slate-100 dark:border-slate-700">
-              Confirm Notification Broadcast
-            </h3>
-
-            <div className="space-y-3 text-xs">
-              <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-700">
-                <span className="text-slate-500">Audience Segment:</span>
-                <span className="font-bold text-slate-900 dark:text-white uppercase">{audience}</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-700">
-                <span className="text-slate-500">Estimated Recipients:</span>
-                <span className="font-bold text-indigo-600 dark:text-indigo-400">{estimatedRecipients} real users</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-700">
-                <span className="text-slate-500">Title:</span>
-                <span className="font-bold text-slate-900 dark:text-white">{title}</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-700">
-                <span className="text-slate-500">Deep Link:</span>
-                <span className="font-bold text-indigo-600 dark:text-indigo-400">{deepLink}</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-700">
-                <span className="text-slate-500">Visual & Sound:</span>
-                <span className="font-bold text-slate-900 dark:text-white">{visualVariant} · {soundVariant}</span>
-              </div>
-            </div>
-
-            {/* Broadcast Confirmation Checkbox for large broadcasts */}
-            {estimatedRecipients > 100 && (
-              <div className="p-3 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-800/40 flex items-start gap-2">
-                <input
-                  type="checkbox"
-                  id="broadcastCheck"
-                  checked={broadcastConfirmed}
-                  onChange={(e) => setBroadcastConfirmed(e.target.checked)}
-                  className="mt-0.5"
-                />
-                <label htmlFor="broadcastCheck" className="text-xs text-amber-800 dark:text-amber-300">
-                  I confirm broadcasting this notification to {estimatedRecipients} users in production.
-                </label>
-              </div>
-            )}
-
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowConfirmModal(false)}
-                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-xs"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={isSubmitting || (estimatedRecipients > 100 && !broadcastConfirmed)}
-                onClick={handleConfirmSend}
-                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-md"
-              >
-                {isSubmitting ? 'Sending...' : 'Confirm & Dispatch'}
-              </button>
-            </div>
+      {/* SECTION 2: SCHEDULED */}
+      {activeTab === 'scheduled' && (
+        <div className="card fade-up">
+          <div className="card-header flex justify-between items-center">
+            <span className="card-title">
+              <Hugeicon name="schedule" size={16} state="active" />
+              Pending Scheduled Broadcasts
+              <span className="badge badge-yellow">{scheduled.length}</span>
+            </span>
           </div>
+
+          {scheduled.length === 0 ? (
+            <GlobalEmptyState
+              icon="schedule"
+              title="No Scheduled Notifications"
+              description="There are currently no broadcast notifications pending delivery in the scheduled queue."
+            />
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>Category</th>
+                    <th>Audience</th>
+                    <th>Destination</th>
+                    <th>Scheduled For</th>
+                    <th>Created By</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scheduled.map((item) => (
+                    <tr key={item.id}>
+                      <td className="font-bold text-sm">{item.title}</td>
+                      <td>
+                        <span className="badge badge-blue">{item.category}</span>
+                      </td>
+                      <td className="text-xs text-secondary">{item.audience_type}</td>
+                      <td className="font-mono text-xs text-tertiary">{item.action_url}</td>
+                      <td className="text-xs text-primary font-bold">
+                        {new Date(item.scheduled_at).toLocaleString('en-GB')}
+                      </td>
+                      <td className="text-xs text-secondary">{item.created_by_name || 'System Admin'}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-danger"
+                          onClick={() => handleCancelScheduled(item)}
+                        >
+                          Cancel
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* SECTION 3: SENT HISTORY */}
+      {activeTab === 'sent' && (
+        <div className="card fade-up">
+          <div className="card-header flex justify-between items-center">
+            <span className="card-title">
+              <Hugeicon name="audit" size={16} state="active" />
+              Sent Broadcast History
+            </span>
+          </div>
+
+          {sent.length === 0 ? (
+            <GlobalEmptyState
+              icon="audit"
+              title="No Sent Broadcast History"
+              description="No broadcast notifications have been processed yet."
+            />
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>Category</th>
+                    <th>Audience</th>
+                    <th>Recipients</th>
+                    <th>Opened</th>
+                    <th>Destination</th>
+                    <th>Sent At</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sent.map((item) => (
+                    <tr key={item.id}>
+                      <td className="font-bold text-sm">{item.title}</td>
+                      <td>
+                        <span className="badge badge-green">{item.category}</span>
+                      </td>
+                      <td className="text-xs text-secondary">{item.audience_type}</td>
+                      <td className="font-mono text-sm font-bold">{item.recipient_count}</td>
+                      <td className="font-mono text-sm" style={{ color: 'var(--brand-blue)' }}>
+                        {item.opened_count}
+                      </td>
+                      <td className="font-mono text-xs text-tertiary">{item.action_url}</td>
+                      <td className="text-xs text-tertiary">
+                        {new Date(item.created_at).toLocaleString('en-GB', {
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 };
-
-export default NotificationsPage;

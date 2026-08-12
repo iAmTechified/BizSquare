@@ -1,0 +1,56 @@
+import { pool } from './pool';
+
+export async function migrateV14Notifications(): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Ensure user_notifications has all necessary admin campaign columns
+    await client.query(`
+      ALTER TABLE user_notifications
+      ADD COLUMN IF NOT EXISTS campaign_id UUID,
+      ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS audience_type VARCHAR(50) DEFAULT 'ALL',
+      ADD COLUMN IF NOT EXISTS push_sent BOOLEAN DEFAULT FALSE;
+    `);
+
+    // 2. Create notification_templates table for reusable templates
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS notification_templates (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        name VARCHAR(150) NOT NULL,
+        category VARCHAR(40) NOT NULL DEFAULT 'ANNOUNCEMENT',
+        visual_variant VARCHAR(40) DEFAULT 'DEFAULT',
+        sound_variant VARCHAR(40) DEFAULT 'DEFAULT',
+        default_title VARCHAR(255) NOT NULL,
+        default_body TEXT NOT NULL,
+        default_cta VARCHAR(100) DEFAULT 'Open App',
+        default_destination VARCHAR(255) DEFAULT 'bizsquare://home',
+        created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // 3. Seed initial approved templates if empty
+    const { rows: tRows } = await client.query('SELECT COUNT(*) FROM notification_templates');
+    if (parseInt(tRows[0].count, 10) === 0) {
+      await client.query(`
+        INSERT INTO notification_templates (name, category, visual_variant, sound_variant, default_title, default_body, default_cta, default_destination)
+        VALUES 
+          ('Weekly Network Announcement', 'ANNOUNCEMENT', 'HIGHLIGHT', 'DEFAULT', 'BizSquare Weekly Update', 'Hi {{firstName}}, check out your new business connections and status updates this week!', 'View Contacts', 'bizsquare://contacts/square'),
+          ('Featured Spotlight Alert', 'SPOTLIGHT', 'GOLD', 'CHIME', 'Spotlight Showcase Live', 'Hi {{firstName}}, this week''s featured business spotlight is now active across the network!', 'View Spotlight', 'bizsquare://spotlight'),
+          ('Contact Gain Discovery', 'CONTACT_GAIN', 'SUCCESS', 'DEFAULT', 'New Contacts Added', 'Congratulations {{firstName}}! You have gained {{newContactCount}} new verified contacts in your network.', 'View Square Contacts', 'bizsquare://contacts/square'),
+          ('Important System Maintenance', 'IMPORTANT', 'ALERT', 'URGENT', 'Important System Update', 'Please complete your BizSquare profile setup to unlock full networking benefits.', 'Complete Setup', 'bizsquare://profile');
+      `);
+    }
+
+    await client.query('COMMIT');
+    console.log('[Migration] V14 Notifications (Admin Templates & Unified Campaigns) executed successfully.');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('[Migration] Failed to execute V14 Notifications migration:', error);
+  } finally {
+    client.release();
+  }
+}

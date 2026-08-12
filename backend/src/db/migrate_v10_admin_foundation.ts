@@ -33,8 +33,23 @@ export async function migrateV10AdminFoundation() {
       CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
     `);
 
+    // 3. Ensure default Super Admin account exists
+    await client.query(`
+      INSERT INTO users (phone_number, full_name, business_name, access_level, is_active, onboarding_completed, verification_status)
+      VALUES ('+2348000000000', 'BizSquare System Admin', 'BizSquare Admin Headquarters', 'super_admin', TRUE, TRUE, 'verified')
+      ON CONFLICT (phone_number) 
+      DO UPDATE SET access_level = 'super_admin', is_active = TRUE, onboarding_completed = TRUE;
+    `);
+
+    await client.query(`
+      INSERT INTO users (phone_number, full_name, business_name, access_level, is_active, onboarding_completed, verification_status)
+      VALUES ('08000000000', 'BizSquare System Admin', 'BizSquare Admin Headquarters', 'super_admin', TRUE, TRUE, 'verified')
+      ON CONFLICT (phone_number) 
+      DO UPDATE SET access_level = 'super_admin', is_active = TRUE, onboarding_completed = TRUE;
+    `);
+
     await client.query('COMMIT');
-    console.log('Migration v10 (Admin Foundation & Audit Logs) completed successfully.');
+    console.log('Migration v10 (Admin Foundation, Audit Logs & Super Admin Seeding) completed successfully.');
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Migration v10 failed:', error);

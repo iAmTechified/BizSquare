@@ -10,6 +10,7 @@ export type AdminPermission =
   | 'spotlight.view'
   | 'spotlight.manage'
   | 'spotlight.moderate'
+  | 'spotlight.override'
   | 'notifications.view'
   | 'notifications.send'
   | 'interests.manage'
@@ -23,17 +24,24 @@ export type AdminPermission =
   | '*';
 
 /**
- * Maps access levels to permission lists for RBAC foundation.
+ * Default permission matrix for Admin access levels.
  */
 export const ROLE_PERMISSIONS_MAP: Record<string, AdminPermission[]> = {
   super_admin: ['*'],
   admin: [
     'users.view',
+    'users.manage',
     'contacts.view',
+    'contacts.manage',
     'spotlight.view',
+    'spotlight.manage',
+    'spotlight.moderate',
+    'spotlight.override',
     'notifications.view',
-    'content.view',
+    'notifications.send',
     'interests.manage',
+    'content.view',
+    'content.manage',
     'analytics.view',
     'system.view',
     'audit.view',

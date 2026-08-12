@@ -27,6 +27,8 @@ import { RetentionService } from './services/retention.service';
 import { SpotlightNotificationService } from './services/spotlight_notification.service';
 import { migrateV10AdminFoundation } from './db/migrate_v10_admin_foundation';
 import { migrateV12SetupCodes } from './db/migrate_v12_setup_codes';
+import { migrateV13SpotlightOps } from './db/migrate_v13_spotlight_ops';
+import { migrateV14Notifications } from './db/migrate_v14_notifications';
 
 dotenv.config();
 
@@ -36,6 +38,12 @@ migrateV10AdminFoundation().catch(err => {
 });
 migrateV12SetupCodes().catch(err => {
   console.warn('V12 Setup Codes migration warning:', err.message);
+});
+migrateV13SpotlightOps().catch(err => {
+  console.warn('V13 Spotlight Operations migration warning:', err.message);
+});
+migrateV14Notifications().catch(err => {
+  console.warn('V14 Notifications migration warning:', err.message);
 });
 
 const app = express();

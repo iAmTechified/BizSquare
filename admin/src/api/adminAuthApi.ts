@@ -238,6 +238,171 @@ export interface SetupCodeItem {
   created_by_name?: string | null;
 }
 
+export interface AdminSpotlightTurnItem {
+  id: string;
+  user_id: string;
+  title: string;
+  promo_text: string;
+  caption: string;
+  flyer_url?: string | null;
+  start_date: string;
+  end_date: string;
+  target_participants: number;
+  is_active: boolean;
+  status: string;
+  submission_status: string;
+  rejection_reason?: string | null;
+  cycle_number?: number;
+  is_override?: boolean;
+  override_reason?: string | null;
+  created_at: string;
+  full_name: string;
+  business_name?: string | null;
+  phone_number?: string | null;
+  username?: string | null;
+  avatar_id: number;
+  primary_offer: string;
+  participant_count: number;
+  turn_status_label?: string;
+}
+
+export interface UpcomingSpotlightUser {
+  id: string;
+  full_name: string;
+  business_name?: string | null;
+  avatar_id: number;
+  phone_number?: string | null;
+  primary_offer: string;
+  last_spotlight_at?: string | null;
+  eligibility_status?: string;
+}
+
+export interface ContactGainCycleItem {
+  id: string;
+  cycle_number: number;
+  batch_date: string;
+  network_size: number;
+  target_per_user: number;
+  allocation_percentage: number;
+  status: 'INITIATED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+  users_processed: number;
+  users_filled: number;
+  users_underfilled: number;
+  total_allocations: number;
+  tier_1_count: number;
+  tier_2_count: number;
+  tier_3_count: number;
+  competitor_exclusions_count: number;
+  execution_duration_ms: number;
+  error_log?: string | null;
+  created_at: string;
+  completed_at?: string | null;
+  network_size_live?: number;
+  weekly_target_calculated?: number;
+  sync_metrics?: {
+    synced: number;
+    pending: number;
+    failed: number;
+  };
+}
+
+export interface CycleUserOutcomeItem {
+  id: string;
+  cycle_id: string;
+  user_id: string;
+  target_count: number;
+  allocated_count: number;
+  tier_1_allocated: number;
+  tier_2_allocated: number;
+  tier_3_allocated: number;
+  is_fully_filled: boolean;
+  unfilled_reason?: string | null;
+  created_at: string;
+  full_name: string;
+  phone_number?: string | null;
+  business_name?: string | null;
+  avatar_id: number;
+  primary_offer: string;
+  sync_status?: string | null;
+  outcome_status: 'Target Met' | 'Below Target' | 'Zero Eligible Matches';
+}
+
+export interface GainedContactItem {
+  relationship_id: string;
+  source: string;
+  sync_status: string;
+  last_synced_at?: string | null;
+  created_at: string;
+  tier?: string | null;
+  final_score?: number | null;
+  match_reason?: string | null;
+  matched_interest_slug?: string | null;
+  partner_id: string;
+  partner_name: string;
+  partner_phone?: string | null;
+  partner_business?: string | null;
+  partner_avatar_id: number;
+  partner_primary_offer: string;
+  is_reciprocal_verified: boolean;
+}
+
+export interface NotificationTemplateItem {
+  id: string;
+  name: string;
+  category: string;
+  visual_variant: string;
+  sound_variant: string;
+  default_title: string;
+  default_body: string;
+  default_cta: string;
+  default_destination: string;
+}
+
+export interface AdminNotificationBroadcastPayload {
+  title: string;
+  body: string;
+  category: 'ANNOUNCEMENT' | 'SPOTLIGHT' | 'CONTACT_GAIN' | 'UPDATE' | 'IMPORTANT' | 'CELEBRATION';
+  visual_variant: 'DEFAULT' | 'HIGHLIGHT' | 'ALERT' | 'SUCCESS' | 'GOLD';
+  sound_variant?: 'DEFAULT' | 'URGENT' | 'CHIME';
+  destination: string;
+  audience_type: 'ALL' | 'NEW_USERS' | 'INCOMPLETE_SETUP' | 'SPOTLIGHT_USERS' | 'CONTACT_GAIN_USERS' | 'INDIVIDUAL';
+  individual_user_id?: string;
+  scheduled_at?: string;
+  expires_at?: string;
+}
+
+export interface ScheduledNotificationItem {
+  id: string;
+  title: string;
+  body: string;
+  category: string;
+  visual_variant: string;
+  sound_variant: string;
+  action_url: string;
+  audience_type: string;
+  scheduled_at: string;
+  expires_at?: string | null;
+  status: string;
+  created_at: string;
+  created_by_name?: string | null;
+  recipient_count: number;
+}
+
+export interface SentNotificationItem {
+  id: string;
+  title: string;
+  body: string;
+  category: string;
+  visual_variant: string;
+  action_url: string;
+  audience_type: string;
+  status: string;
+  created_at: string;
+  created_by_name?: string | null;
+  recipient_count: number;
+  opened_count: number;
+}
+
 export const adminAuthApi = {
   /**
    * Real Admin Authentication
@@ -274,6 +439,242 @@ export const adminAuthApi = {
    */
   async getOverview(range: 'today' | '7d' | '30d' = 'today'): Promise<OverviewData> {
     return adminFetch<OverviewData>(`/admin/overview?range=${range}`);
+  },
+
+  /**
+   * Notification Operations: Calculate Recipient Estimate
+   */
+  async getNotificationRecipientEstimate(
+    audience_type: string,
+    individual_user_id?: string
+  ): Promise<{ success: boolean; audience_type: string; estimated_count: number }> {
+    const query = new URLSearchParams({ audience_type });
+    if (individual_user_id) query.append('individual_user_id', individual_user_id);
+    return adminFetch<{ success: boolean; audience_type: string; estimated_count: number }>(
+      `/admin/notifications/recipient-estimate?${query.toString()}`
+    );
+  },
+
+  /**
+   * Notification Operations: Reusable Templates
+   */
+  async getNotificationTemplates(): Promise<{ success: boolean; templates: NotificationTemplateItem[] }> {
+    return adminFetch<{ success: boolean; templates: NotificationTemplateItem[] }>('/admin/notifications/templates');
+  },
+
+  /**
+   * Notification Operations: Send / Schedule Broadcast
+   */
+  async sendAdminNotification(
+    payload: AdminNotificationBroadcastPayload
+  ): Promise<{ success: boolean; message: string; recipient_count: number; is_scheduled: boolean }> {
+    return adminFetch<{ success: boolean; message: string; recipient_count: number; is_scheduled: boolean }>(
+      '/admin/notifications/send',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    );
+  },
+
+  /**
+   * Notification Operations: Scheduled Queue
+   */
+  async getScheduledNotifications(): Promise<{ success: boolean; scheduled: ScheduledNotificationItem[] }> {
+    return adminFetch<{ success: boolean; scheduled: ScheduledNotificationItem[] }>('/admin/notifications/scheduled');
+  },
+
+  /**
+   * Notification Operations: Sent History
+   */
+  async getSentNotifications(limit = 20, offset = 0): Promise<{ success: boolean; sent: SentNotificationItem[] }> {
+    return adminFetch<{ success: boolean; sent: SentNotificationItem[] }>(
+      `/admin/notifications/sent?limit=${limit}&offset=${offset}`
+    );
+  },
+
+  /**
+   * Notification Operations: Cancel Scheduled Notification
+   */
+  async cancelScheduledNotification(id: string): Promise<{ success: boolean; message: string }> {
+    return adminFetch<{ success: boolean; message: string }>(`/admin/notifications/${id}/cancel`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Contact Gain Operations: Current Cycle Status
+   */
+  async getCurrentContactGainCycle(): Promise<{ success: boolean; current_cycle: ContactGainCycleItem | null; message?: string }> {
+    return adminFetch<{ success: boolean; current_cycle: ContactGainCycleItem | null; message?: string }>('/admin/contact-gain/current');
+  },
+
+  /**
+   * Contact Gain Operations: Historical Cycles
+   */
+  async getContactGainCycles(limit = 20, offset = 0): Promise<{
+    success: boolean;
+    cycles: ContactGainCycleItem[];
+    total_count: number;
+    limit: number;
+    offset: number;
+  }> {
+    return adminFetch(`/admin/contact-gain/cycles?limit=${limit}&offset=${offset}`);
+  },
+
+  /**
+   * Contact Gain Operations: Cycle User Outcomes
+   */
+  async getCycleUserOutcomes(
+    cycleId: string,
+    params: { search?: string; outcome?: string; limit?: number; offset?: number } = {}
+  ): Promise<{
+    success: boolean;
+    user_outcomes: CycleUserOutcomeItem[];
+    total_count: number;
+    limit: number;
+    offset: number;
+  }> {
+    const query = new URLSearchParams();
+    if (params.search) query.append('search', params.search);
+    if (params.outcome) query.append('outcome', params.outcome);
+    if (params.limit) query.append('limit', params.limit.toString());
+    if (params.offset) query.append('offset', params.offset.toString());
+
+    return adminFetch(`/admin/contact-gain/cycles/${cycleId}/users?${query.toString()}`);
+  },
+
+  /**
+   * Contact Gain Operations: User Inspection Detail
+   */
+  async getUserContactGainDetail(userId: string): Promise<{
+    success: boolean;
+    user: { id: string; full_name: string; phone_number?: string; business_name?: string; avatar_id: number };
+    capacity: { network_size: number; minimum_target_10_pct: number; maximum_cap_10_pct: number; contacts_gained_total: number };
+    gained_contacts: GainedContactItem[];
+  }> {
+    return adminFetch(`/admin/contact-gain/users/${userId}`);
+  },
+
+  /**
+   * Contact Gain Operations: Matching Gaps
+   */
+  async getContactGainGaps(): Promise<{
+    success: boolean;
+    gaps: { underfilled_users: any[]; underfilled_count: number };
+  }> {
+    return adminFetch('/admin/contact-gain/gaps');
+  },
+
+  /**
+   * Contact Gain Operations: Trigger Weekly Matching Cycle
+   */
+  async triggerWeeklyMatchingCycle(): Promise<{ success: boolean; message: string; result: any }> {
+    return adminFetch<{ success: boolean; message: string; result: any }>('/admin/contact-gain/cycles/trigger', {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Contact Gain Operations: Retry Failed Device Sync
+   */
+  async retryCycleDeviceSync(cycleId: string): Promise<{ success: boolean; message: string; retried_count: number }> {
+    return adminFetch<{ success: boolean; message: string; retried_count: number }>(`/admin/contact-gain/cycles/${cycleId}/retry-sync`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Spotlight Operations: Answers "WHOSE TURN IS IT?"
+   */
+  async getCurrentSpotlightTurn(): Promise<{ success: boolean; current_turn: AdminSpotlightTurnItem | null; message?: string }> {
+    return adminFetch<{ success: boolean; current_turn: AdminSpotlightTurnItem | null; message?: string }>('/admin/spotlight/current');
+  },
+
+  /**
+   * Spotlight Operations: Upcoming queue
+   */
+  async getUpcomingSpotlightQueue(): Promise<{ success: boolean; upcoming: UpcomingSpotlightUser[] }> {
+    return adminFetch<{ success: boolean; upcoming: UpcomingSpotlightUser[] }>('/admin/spotlight/upcoming');
+  },
+
+  /**
+   * Spotlight Operations: Moderation queue submissions
+   */
+  async getSpotlightSubmissions(status = 'pending_review', limit = 20, offset = 0): Promise<{
+    success: boolean;
+    submissions: AdminSpotlightTurnItem[];
+    total_count: number;
+    limit: number;
+    offset: number;
+  }> {
+    return adminFetch(`/admin/spotlight/submissions?status=${status}&limit=${limit}&offset=${offset}`);
+  },
+
+  /**
+   * Spotlight Operations: History query
+   */
+  async getSpotlightHistory(params: { search?: string; status?: string; limit?: number; offset?: number } = {}): Promise<{
+    success: boolean;
+    history: AdminSpotlightTurnItem[];
+    total_count: number;
+    limit: number;
+    offset: number;
+  }> {
+    const query = new URLSearchParams();
+    if (params.search) query.append('search', params.search);
+    if (params.status) query.append('status', params.status);
+    if (params.limit) query.append('limit', params.limit.toString());
+    if (params.offset) query.append('offset', params.offset.toString());
+
+    return adminFetch(`/admin/spotlight/history?${query.toString()}`);
+  },
+
+  /**
+   * Spotlight Operations: Search eligible users for turn override
+   */
+  async getEligibleUsersForOverride(search?: string): Promise<{ success: boolean; users: UpcomingSpotlightUser[] }> {
+    const query = search ? `?search=${encodeURIComponent(search)}` : '';
+    return adminFetch<{ success: boolean; users: UpcomingSpotlightUser[] }>(`/admin/spotlight/eligible-users${query}`);
+  },
+
+  /**
+   * Spotlight Operations: Approve submission
+   */
+  async approveSpotlightSubmission(campaignId: string): Promise<{ success: boolean; message: string }> {
+    return adminFetch<{ success: boolean; message: string }>(`/admin/spotlight/submissions/${campaignId}/approve`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Spotlight Operations: Disapprove submission
+   */
+  async disapproveSpotlightSubmission(campaignId: string, reason: string, note?: string): Promise<{ success: boolean; message: string }> {
+    return adminFetch<{ success: boolean; message: string }>(`/admin/spotlight/submissions/${campaignId}/disapprove`, {
+      method: 'POST',
+      body: JSON.stringify({ reason, note }),
+    });
+  },
+
+  /**
+   * Spotlight Operations: Stop active Spotlight
+   */
+  async stopSpotlightCampaign(campaignId: string, reason?: string): Promise<{ success: boolean; message: string }> {
+    return adminFetch<{ success: boolean; message: string }>(`/admin/spotlight/submissions/${campaignId}/stop`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
+  /**
+   * Spotlight Operations: Override turn
+   */
+  async overrideSpotlightTurn(user_id: string, reason: string): Promise<{ success: boolean; message: string }> {
+    return adminFetch<{ success: boolean; message: string }>('/admin/spotlight/override', {
+      method: 'POST',
+      body: JSON.stringify({ user_id, reason }),
+    });
   },
 
   /**

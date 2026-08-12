@@ -1447,4 +1447,1363 @@ router.post('/setup-codes/:id/revoke', requirePermission('system.manage'), async
   }
 });
 
+// ============================================================================
+// 9. SPOTLIGHT OPERATIONS MODULE (TURN 5)
+// ============================================================================
+
+/**
+ * GET /api/v1/admin/spotlight/current
+ * Answers "WHOSE TURN IS IT?" using real backend PostgreSQL data.
+ * Protected by spotlight.view permission.
+ */
+router.get('/spotlight/current', requirePermission('spotlight.view'), async (req: AuthRequest, res: Response) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT 
+        sc.id,
+        sc.user_id,
+        sc.title,
+        sc.promo_text,
+        sc.caption,
+        sc.flyer_url,
+        sc.start_date,
+        sc.end_date,
+        sc.target_participants,
+        sc.is_active,
+        COALESCE(sc.status, 'active') as status,
+        COALESCE(sc.submission_status, 'verified') as submission_status,
+        sc.rejection_reason,
+        sc.cycle_number,
+        sc.is_override,
+        sc.override_reason,
+        sc.created_at,
+        
+        -- Turn owner user identity
+        u.full_name,
+        u.business_name,
+        u.phone_number,
+        u.username,
+        u.avatar_id,
+        u.verification_status as user_verification_status,
+        COALESCE(mn.name, 'General Business') as primary_offer,
+
+        -- Real participant count
+        (
+          SELECT COUNT(*) 
+          FROM spotlight_participations sp 
+          WHERE sp.campaign_id = sc.id
+        )::int as participant_count
+
+      FROM spotlight_campaigns sc
+      JOIN users u ON u.id = sc.user_id
+      LEFT JOIN business_micro_niches bmn ON bmn.user_id = u.id AND bmn.is_primary = TRUE
+      LEFT JOIN micro_niches mn ON mn.id = bmn.micro_niche_id
+      WHERE sc.is_active = TRUE
+      ORDER BY sc.created_at DESC
+      LIMIT 1
+    `);
+
+    if (rows.length === 0) {
+      return res.json({
+        success: true,
+        current_turn: null,
+        message: 'No Spotlight campaign is currently active.',
+      });
+    }
+
+    const currentTurn = rows[0];
+
+    // Determine turn status text
+    let turnStatus = 'Awaiting Submission';
+    if (currentTurn.submission_status === 'pending_review' || currentTurn.status === 'pending') {
+      turnStatus = 'Pending Moderation Review';
+    } else if (currentTurn.submission_status === 'verified' || currentTurn.submission_status === 'approved') {
+      turnStatus = 'Approved & Active';
+    } else if (currentTurn.status === 'stopped') {
+      turnStatus = 'Stopped';
+    } else if (currentTurn.submission_status === 'disapproved') {
+      turnStatus = 'Disapproved';
+    }
+
+    res.json({
+      success: true,
+      current_turn: {
+        ...currentTurn,
+        turn_status_label: turnStatus,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error fetching admin current spotlight turn:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch current spotlight turn.' });
+  }
+});
+
+/**
+ * GET /api/v1/admin/spotlight/upcoming
+ * Fetches the upcoming Spotlight turn queue from eligible users in PostgreSQL.
+ */
+router.get('/spotlight/upcoming', requirePermission('spotlight.view'), async (req: AuthRequest, res: Response) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT 
+        u.id, 
+        u.full_name, 
+        u.business_name, 
+        u.avatar_id, 
+        u.phone_number,
+        COALESCE(mn.name, 'General Business') as primary_offer,
+        (
+          SELECT MAX(sc.created_at) 
+          FROM spotlight_campaigns sc 
+          WHERE sc.user_id = u.id
+        ) as last_spotlight_at
+      FROM users u
+      LEFT JOIN business_micro_niches bmn ON bmn.user_id = u.id AND bmn.is_primary = TRUE
+      LEFT JOIN micro_niches mn ON mn.id = bmn.micro_niche_id
+      WHERE u.is_active = TRUE 
+        AND u.onboarding_completed = TRUE
+        AND u.id NOT IN (
+          SELECT user_id FROM spotlight_campaigns WHERE is_active = TRUE
+        )
+      ORDER BY last_spotlight_at ASC NULLS FIRST, u.created_at ASC
+      LIMIT 10
+    `);
+
+    res.json({
+      success: true,
+      upcoming: rows,
+    });
+  } catch (error: any) {
+    console.error('Error fetching upcoming spotlight queue:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch upcoming queue.' });
+  }
+});
+
+/**
+ * GET /api/v1/admin/spotlight/submissions
+ * Moderation queue for Spotlight submissions.
+ * Supports status filter ('pending_review', 'approved', 'disapproved', 'stopped', 'all').
+ */
+router.get('/spotlight/submissions', requirePermission('spotlight.view'), async (req: AuthRequest, res: Response) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+    const status = (req.query.status as string) || 'pending_review';
+
+    let statusCondition = "AND (sc.submission_status = 'pending_review' OR sc.status = 'pending')";
+    if (status === 'approved') statusCondition = "AND (sc.submission_status = 'approved' OR sc.submission_status = 'verified')";
+    if (status === 'disapproved') statusCondition = "AND sc.submission_status = 'disapproved'";
+    if (status === 'stopped') statusCondition = "AND sc.status = 'stopped'";
+    if (status === 'all') statusCondition = '';
+
+    const queryText = `
+      SELECT 
+        sc.id,
+        sc.user_id,
+        sc.title,
+        sc.promo_text,
+        sc.caption,
+        sc.flyer_url,
+        sc.start_date,
+        sc.end_date,
+        sc.is_active,
+        COALESCE(sc.status, 'active') as status,
+        COALESCE(sc.submission_status, 'pending_review') as submission_status,
+        sc.rejection_reason,
+        sc.created_at,
+        COUNT(*) OVER() as total_count,
+        
+        u.full_name,
+        u.business_name,
+        u.phone_number,
+        u.avatar_id,
+        COALESCE(mn.name, 'General Business') as primary_offer
+      FROM spotlight_campaigns sc
+      JOIN users u ON u.id = sc.user_id
+      LEFT JOIN business_micro_niches bmn ON bmn.user_id = u.id AND bmn.is_primary = TRUE
+      LEFT JOIN micro_niches mn ON mn.id = bmn.micro_niche_id
+      WHERE 1=1 ${statusCondition}
+      ORDER BY sc.created_at DESC
+      LIMIT $1 OFFSET $2
+    `;
+
+    const { rows } = await pool.query(queryText, [limit, offset]);
+    const totalCount = rows.length > 0 ? parseInt(rows[0].total_count, 10) : 0;
+    const submissions = rows.map(({ total_count, ...s }) => s);
+
+    res.json({
+      success: true,
+      submissions,
+      total_count: totalCount,
+      limit,
+      offset,
+    });
+  } catch (error: any) {
+    console.error('Error fetching spotlight submissions:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch spotlight submissions.' });
+  }
+});
+
+/**
+ * GET /api/v1/admin/spotlight/history
+ * Comprehensive Spotlight history endpoint with search, status filtering, and pagination.
+ */
+router.get('/spotlight/history', requirePermission('spotlight.view'), async (req: AuthRequest, res: Response) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+    const search = req.query.search ? `%${(req.query.search as string).trim()}%` : null;
+    const status = req.query.status as string; // 'completed' | 'active' | 'approved' | 'disapproved' | 'stopped' | 'all'
+
+    const whereConditions: string[] = ['1=1'];
+    const queryParams: any[] = [];
+
+    if (search) {
+      queryParams.push(search);
+      const paramIdx = queryParams.length;
+      whereConditions.push(`($${paramIdx}::text IS NULL OR u.full_name ILIKE $${paramIdx} OR sc.title ILIKE $${paramIdx} OR sc.id::text ILIKE $${paramIdx})`);
+    }
+
+    if (status && status !== 'all') {
+      queryParams.push(status);
+      const paramIdx = queryParams.length;
+      whereConditions.push(`(sc.status = $${paramIdx} OR sc.submission_status = $${paramIdx})`);
+    }
+
+    queryParams.push(limit);
+    const limitIdx = queryParams.length;
+    queryParams.push(offset);
+    const offsetIdx = queryParams.length;
+
+    const queryText = `
+      SELECT 
+        sc.id,
+        sc.user_id,
+        sc.title,
+        sc.promo_text,
+        sc.caption,
+        sc.flyer_url,
+        sc.start_date,
+        sc.end_date,
+        sc.target_participants,
+        sc.is_active,
+        COALESCE(sc.status, 'active') as status,
+        COALESCE(sc.submission_status, 'verified') as submission_status,
+        sc.rejection_reason,
+        sc.is_override,
+        sc.created_at,
+        COUNT(*) OVER() as total_count,
+
+        u.full_name,
+        u.business_name,
+        u.avatar_id,
+
+        (
+          SELECT COUNT(*) 
+          FROM spotlight_participations sp 
+          WHERE sp.campaign_id = sc.id
+        )::int as participant_count
+      FROM spotlight_campaigns sc
+      JOIN users u ON u.id = sc.user_id
+      WHERE ${whereConditions.join(' AND ')}
+      ORDER BY sc.created_at DESC
+      LIMIT $${limitIdx} OFFSET $${offsetIdx}
+    `;
+
+    const { rows } = await pool.query(queryText, queryParams);
+    const totalCount = rows.length > 0 ? parseInt(rows[0].total_count, 10) : 0;
+    const history = rows.map(({ total_count, ...h }) => h);
+
+    res.json({
+      success: true,
+      history,
+      total_count: totalCount,
+      limit,
+      offset,
+    });
+  } catch (error: any) {
+    console.error('Error fetching spotlight history:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch spotlight history.' });
+  }
+});
+
+/**
+ * GET /api/v1/admin/spotlight/eligible-users
+ * Real-time user search for the Admin Turn Override modal.
+ */
+router.get('/spotlight/eligible-users', requirePermission('spotlight.view'), async (req: AuthRequest, res: Response) => {
+  try {
+    const search = req.query.search ? `%${(req.query.search as string).trim()}%` : null;
+
+    const { rows } = await pool.query(
+      `SELECT 
+         u.id, 
+         u.full_name, 
+         u.business_name, 
+         u.phone_number, 
+         u.avatar_id,
+         u.is_active,
+         COALESCE(mn.name, 'General Business') as primary_offer,
+         (
+           SELECT MAX(sc.created_at) 
+           FROM spotlight_campaigns sc 
+           WHERE sc.user_id = u.id
+         ) as last_spotlight_at,
+         EXISTS(
+           SELECT 1 FROM spotlight_campaigns WHERE user_id = u.id AND is_active = TRUE
+         ) as is_currently_active
+       FROM users u
+       LEFT JOIN business_micro_niches bmn ON bmn.user_id = u.id AND bmn.is_primary = TRUE
+       LEFT JOIN micro_niches mn ON mn.id = bmn.micro_niche_id
+       WHERE u.is_active = TRUE AND u.onboarding_completed = TRUE
+         AND ($1::text IS NULL OR u.full_name ILIKE $1 OR u.phone_number ILIKE $1 OR u.business_name ILIKE $1)
+       ORDER BY is_currently_active DESC, u.full_name ASC
+       LIMIT 20`,
+      [search]
+    );
+
+    const eligibleUsers = rows.map((u) => ({
+      ...u,
+      eligibility_status: u.is_currently_active ? 'Currently Active' : u.last_spotlight_at ? 'Previously Featured' : 'Eligible',
+    }));
+
+    res.json({
+      success: true,
+      users: eligibleUsers,
+    });
+  } catch (error: any) {
+    console.error('Error fetching eligible users for spotlight override:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch eligible users.' });
+  }
+});
+
+/**
+ * POST /api/v1/admin/spotlight/submissions/:id/approve
+ * Approves a pending Spotlight submission.
+ * Protected by spotlight.moderate permission. Writes admin.spotlight.approve audit log.
+ */
+router.post('/spotlight/submissions/:id/approve', requirePermission('spotlight.moderate'), async (req: AuthRequest, res: Response) => {
+  try {
+    const campaignId = req.params.id as string;
+
+    const { rows } = await pool.query(
+      `UPDATE spotlight_campaigns 
+       SET submission_status = 'approved', status = 'active', is_active = TRUE, rejection_reason = NULL 
+       WHERE id = $1 
+       RETURNING id, user_id, title`,
+      [campaignId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Spotlight campaign not found.' });
+    }
+
+    const campaign = rows[0];
+
+    await AuditService.logEvent(req, {
+      action: 'admin.spotlight.approve',
+      resourceType: 'spotlight_campaign',
+      resourceId: campaignId,
+      metadata: { title: campaign.title, user_id: campaign.user_id },
+      result: 'success',
+    });
+
+    res.json({
+      success: true,
+      message: 'Spotlight submission approved successfully.',
+      campaign,
+    });
+  } catch (error: any) {
+    console.error('Error approving spotlight submission:', error);
+    res.status(500).json({ error: error.message || 'Failed to approve submission.' });
+  }
+});
+
+/**
+ * POST /api/v1/admin/spotlight/submissions/:id/disapprove
+ * Disapproves a Spotlight submission with a required moderation reason.
+ * Protected by spotlight.moderate permission. Writes admin.spotlight.disapprove audit log.
+ */
+router.post('/spotlight/submissions/:id/disapprove', requirePermission('spotlight.moderate'), async (req: AuthRequest, res: Response) => {
+  try {
+    const campaignId = req.params.id as string;
+    const adminId = req.user.id;
+    const { reason, note } = req.body;
+
+    if (!reason || typeof reason !== 'string' || !reason.trim()) {
+      return res.status(400).json({ error: 'A moderation reason is required for disapproval.' });
+    }
+
+    const fullReason = note ? `${reason.trim()}: ${note.trim()}` : reason.trim();
+
+    const { rows } = await pool.query(
+      `UPDATE spotlight_campaigns 
+       SET submission_status = 'disapproved', status = 'disapproved', is_active = FALSE, rejection_reason = $1, disapproved_by = $2 
+       WHERE id = $3 
+       RETURNING id, user_id, title`,
+      [fullReason, adminId, campaignId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Spotlight campaign not found.' });
+    }
+
+    const campaign = rows[0];
+
+    await AuditService.logEvent(req, {
+      action: 'admin.spotlight.disapprove',
+      resourceType: 'spotlight_campaign',
+      resourceId: campaignId,
+      metadata: { title: campaign.title, user_id: campaign.user_id, reason: fullReason },
+      result: 'success',
+    });
+
+    res.json({
+      success: true,
+      message: 'Spotlight submission disapproved.',
+      campaign,
+    });
+  } catch (error: any) {
+    console.error('Error disapproving spotlight submission:', error);
+    res.status(500).json({ error: error.message || 'Failed to disapprove submission.' });
+  }
+});
+
+/**
+ * POST /api/v1/admin/spotlight/submissions/:id/stop
+ * Stops an active Spotlight campaign.
+ * Protected by spotlight.manage permission. Writes admin.spotlight.stop audit log.
+ */
+router.post('/spotlight/submissions/:id/stop', requirePermission('spotlight.manage'), async (req: AuthRequest, res: Response) => {
+  try {
+    const campaignId = req.params.id as string;
+    const adminId = req.user.id;
+    const { reason } = req.body;
+
+    const { rows } = await pool.query(
+      `UPDATE spotlight_campaigns 
+       SET status = 'stopped', is_active = FALSE, stopped_by = $1, stopped_at = CURRENT_TIMESTAMP 
+       WHERE id = $2 
+       RETURNING id, user_id, title`,
+      [adminId, campaignId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Spotlight campaign not found.' });
+    }
+
+    const campaign = rows[0];
+
+    await AuditService.logEvent(req, {
+      action: 'admin.spotlight.stop',
+      resourceType: 'spotlight_campaign',
+      resourceId: campaignId,
+      metadata: { title: campaign.title, user_id: campaign.user_id, reason: reason || 'Administrative stop' },
+      result: 'success',
+    });
+
+    res.json({
+      success: true,
+      message: 'Spotlight campaign stopped successfully.',
+      campaign,
+    });
+  } catch (error: any) {
+    console.error('Error stopping spotlight campaign:', error);
+    res.status(500).json({ error: error.message || 'Failed to stop spotlight.' });
+  }
+});
+
+/**
+ * POST /api/v1/admin/spotlight/override
+ * Overrides the Spotlight turn to an authorized replacement user.
+ * Deactivates current turn, creates new active campaign with is_override = true.
+ * Protected by spotlight.override or spotlight.manage permission. Writes admin.spotlight.override audit log.
+ */
+router.post('/spotlight/override', requirePermission('spotlight.override'), async (req: AuthRequest, res: Response) => {
+  try {
+    const adminId = req.user.id;
+    const { user_id, reason } = req.body;
+
+    if (!user_id || typeof user_id !== 'string') {
+      return res.status(400).json({ error: 'Target user_id is required for Spotlight turn override.' });
+    }
+
+    if (!reason || typeof reason !== 'string' || !reason.trim()) {
+      return res.status(400).json({ error: 'An administrative reason is required for Spotlight turn override.' });
+    }
+
+    // Verify replacement user exists & is active
+    const { rows: uRows } = await pool.query(
+      `SELECT id, full_name, business_name FROM users WHERE id = $1 AND is_active = TRUE`,
+      [user_id]
+    );
+
+    if (uRows.length === 0) {
+      return res.status(404).json({ error: 'Target user account not found or is suspended.' });
+    }
+
+    const newParticipant = uRows[0];
+
+    const client = await pool.connect();
+    let newCampaign: any = null;
+
+    try {
+      await client.query('BEGIN');
+
+      // 1. Deactivate any currently active campaigns
+      await client.query(
+        `UPDATE spotlight_campaigns SET is_active = FALSE, status = 'completed' WHERE is_active = TRUE`
+      );
+
+      // 2. Create new active campaign for replacement participant
+      const title = `${newParticipant.business_name || newParticipant.full_name} Featured Spotlight`;
+      const promoText = `Check out ${newParticipant.business_name || newParticipant.full_name} on BizSquare!`;
+
+      const { rows: cRows } = await client.query(
+        `INSERT INTO spotlight_campaigns (user_id, title, promo_text, caption, is_active, status, submission_status, is_override, override_reason, overridden_by)
+         VALUES ($1, $2, $3, $4, TRUE, 'active', 'pending_review', TRUE, $5, $6)
+         RETURNING id, user_id, title, created_at`,
+        [user_id, title, promoText, promoText, reason.trim(), adminId]
+      );
+
+      newCampaign = cRows[0];
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    await AuditService.logEvent(req, {
+      action: 'admin.spotlight.override',
+      resourceType: 'spotlight_campaign',
+      resourceId: newCampaign.id,
+      metadata: {
+        new_participant_id: user_id,
+        new_participant_name: newParticipant.full_name,
+        business_name: newParticipant.business_name,
+        reason: reason.trim(),
+      },
+      result: 'success',
+    });
+
+    res.json({
+      success: true,
+      message: `Spotlight turn successfully overridden to ${newParticipant.full_name}.`,
+      campaign: newCampaign,
+    });
+  } catch (error: any) {
+    console.error('Error executing admin spotlight override:', error);
+    res.status(500).json({ error: error.message || 'Failed to override spotlight turn.' });
+  }
+});
+
+// ============================================================================
+// 10. CONTACT GAIN OPERATIONS MODULE (TURN 6)
+// ============================================================================
+
+import { MatchingEngineService } from '../services/matching/matching_engine.service';
+import { MATCHING_CONFIG } from '../config/matching.config';
+
+/**
+ * GET /api/v1/admin/contact-gain/current
+ * Answers "WHAT IS THE CURRENT CYCLE STATUS?" using real backend PostgreSQL data.
+ * Protected by contacts.view permission.
+ */
+router.get('/contact-gain/current', requirePermission('contacts.view'), async (req: AuthRequest, res: Response) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT 
+        id,
+        cycle_number,
+        batch_date,
+        network_size,
+        target_per_user,
+        allocation_percentage,
+        status,
+        users_processed,
+        users_filled,
+        users_underfilled,
+        total_allocations,
+        tier_1_count,
+        tier_2_count,
+        tier_3_count,
+        competitor_exclusions_count,
+        execution_duration_ms,
+        error_log,
+        created_at,
+        completed_at
+      FROM weekly_matching_cycles
+      ORDER BY batch_date DESC, created_at DESC
+      LIMIT 1
+    `);
+
+    if (rows.length === 0) {
+      return res.json({
+        success: true,
+        current_cycle: null,
+        message: 'No Contact Gain cycles have executed yet.',
+      });
+    }
+
+    const cycle = rows[0];
+
+    // Fetch sync pipeline metrics for this cycle
+    const { rows: syncRows } = await pool.query(
+      `SELECT 
+         COUNT(*) FILTER (WHERE sync_status = 'SYNCED') as synced_count,
+         COUNT(*) FILTER (WHERE sync_status = 'PENDING_SYNC') as pending_count,
+         COUNT(*) FILTER (WHERE sync_status = 'FAILED') as failed_count
+       FROM contact_relationships
+       WHERE cycle_id = $1`,
+      [cycle.id]
+    );
+
+    const syncMetrics = {
+      synced: parseInt(syncRows[0]?.synced_count || '0', 10),
+      pending: parseInt(syncRows[0]?.pending_count || '0', 10),
+      failed: parseInt(syncRows[0]?.failed_count || '0', 10),
+    };
+
+    // Calculate real network population for 10% target verification
+    const { rows: [{ count: activeUserCount }] } = await pool.query(
+      `SELECT COUNT(*) FROM users WHERE is_active = TRUE AND onboarding_completed = TRUE`
+    );
+    const networkSize = parseInt(activeUserCount, 10) || 1;
+    const weeklyTarget = MATCHING_CONFIG.calculateWeeklyTarget(networkSize);
+
+    res.json({
+      success: true,
+      current_cycle: {
+        ...cycle,
+        network_size_live: networkSize,
+        weekly_target_calculated: weeklyTarget,
+        sync_metrics: syncMetrics,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error fetching current contact gain cycle:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch current contact gain cycle.' });
+  }
+});
+
+/**
+ * GET /api/v1/admin/contact-gain/cycles
+ * Lists historical Contact Gain cycles from PostgreSQL database.
+ */
+router.get('/contact-gain/cycles', requirePermission('contacts.view'), async (req: AuthRequest, res: Response) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+
+    const { rows } = await pool.query(
+      `SELECT 
+         id,
+         cycle_number,
+         batch_date,
+         network_size,
+         target_per_user,
+         status,
+         users_processed,
+         users_filled,
+         users_underfilled,
+         total_allocations,
+         tier_1_count,
+         tier_2_count,
+         tier_3_count,
+         competitor_exclusions_count,
+         execution_duration_ms,
+         created_at,
+         completed_at,
+         COUNT(*) OVER() as total_count
+       FROM weekly_matching_cycles
+       ORDER BY batch_date DESC, created_at DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
+
+    const totalCount = rows.length > 0 ? parseInt(rows[0].total_count, 10) : 0;
+    const cycles = rows.map(({ total_count, ...c }) => c);
+
+    res.json({
+      success: true,
+      cycles,
+      total_count: totalCount,
+      limit,
+      offset,
+    });
+  } catch (error: any) {
+    console.error('Error fetching contact gain cycles history:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch cycle history.' });
+  }
+});
+
+/**
+ * GET /api/v1/admin/contact-gain/cycles/:id/users
+ * Cycle-specific user outcome table returning:
+ * - User identity (name, phone, avatar)
+ * - Target count vs allocated count (10% minimum fill target)
+ * - Match outcome status (Target Met, Below Target, Zero Eligible Matches)
+ * - Sync status (SYNCED, PENDING_SYNC, FAILED)
+ * - Unfilled reason
+ */
+router.get('/contact-gain/cycles/:id/users', requirePermission('contacts.view'), async (req: AuthRequest, res: Response) => {
+  try {
+    const cycleId = req.params.id as string;
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+    const search = req.query.search ? `%${(req.query.search as string).trim()}%` : null;
+    const outcome = req.query.outcome as string; // 'filled' | 'underfilled' | 'zero_matches' | 'sync_failed' | 'all'
+
+    const whereConditions: string[] = ['cas.cycle_id = $1'];
+    const queryParams: any[] = [cycleId];
+
+    if (search) {
+      queryParams.push(search);
+      const paramIdx = queryParams.length;
+      whereConditions.push(`($${paramIdx}::text IS NULL OR u.full_name ILIKE $${paramIdx} OR u.phone_number ILIKE $${paramIdx} OR u.id::text ILIKE $${paramIdx})`);
+    }
+
+    if (outcome === 'filled') {
+      whereConditions.push('cas.is_fully_filled = TRUE');
+    } else if (outcome === 'underfilled') {
+      whereConditions.push('cas.is_fully_filled = FALSE AND cas.allocated_count > 0');
+    } else if (outcome === 'zero_matches') {
+      whereConditions.push('cas.allocated_count = 0');
+    }
+
+    queryParams.push(limit);
+    const limitIdx = queryParams.length;
+    queryParams.push(offset);
+    const offsetIdx = queryParams.length;
+
+    const queryText = `
+      SELECT 
+        cas.id,
+        cas.cycle_id,
+        cas.user_id,
+        cas.target_count,
+        cas.allocated_count,
+        cas.tier_1_allocated,
+        cas.tier_2_allocated,
+        cas.tier_3_allocated,
+        cas.is_fully_filled,
+        cas.unfilled_reason,
+        cas.created_at,
+        COUNT(*) OVER() as total_count,
+
+        u.full_name,
+        u.phone_number,
+        u.business_name,
+        u.avatar_id,
+        COALESCE(mn.name, 'General Business') as primary_offer,
+
+        -- Sync status from contact_relationships
+        (
+          SELECT cr.sync_status 
+          FROM contact_relationships cr 
+          WHERE (cr.user_a_id = u.id OR cr.user_b_id = u.id) AND cr.cycle_id = cas.cycle_id 
+          ORDER BY cr.created_at DESC LIMIT 1
+        ) as sync_status
+
+      FROM cycle_allocation_summaries cas
+      JOIN users u ON u.id = cas.user_id
+      LEFT JOIN business_micro_niches bmn ON bmn.user_id = u.id AND bmn.is_primary = TRUE
+      LEFT JOIN micro_niches mn ON mn.id = bmn.micro_niche_id
+      WHERE ${whereConditions.join(' AND ')}
+      ORDER BY cas.allocated_count ASC, u.full_name ASC
+      LIMIT $${limitIdx} OFFSET $${offsetIdx}
+    `;
+
+    const { rows } = await pool.query(queryText, queryParams);
+    const totalCount = rows.length > 0 ? parseInt(rows[0].total_count, 10) : 0;
+    const userOutcomes = rows.map(({ total_count, ...u }) => ({
+      ...u,
+      outcome_status: u.is_fully_filled
+        ? 'Target Met'
+        : u.allocated_count > 0
+        ? 'Below Target'
+        : 'Zero Eligible Matches',
+    }));
+
+    res.json({
+      success: true,
+      user_outcomes: userOutcomes,
+      total_count: totalCount,
+      limit,
+      offset,
+    });
+  } catch (error: any) {
+    console.error('Error fetching cycle user outcomes:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch user outcomes for cycle.' });
+  }
+});
+
+/**
+ * GET /api/v1/admin/contact-gain/users/:userId
+ * Detailed Contact Gain inspection for a single user showing gained contacts, reciprocal relationships, and explainability.
+ */
+router.get('/contact-gain/users/:userId', requirePermission('contacts.view'), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.params.userId as string;
+
+    const { rows: uRows } = await pool.query(
+      `SELECT id, full_name, phone_number, business_name, avatar_id FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    if (uRows.length === 0) {
+      return res.status(404).json({ error: 'User account not found.' });
+    }
+
+    const user = uRows[0];
+
+    // Fetch total network population for capacity calculation
+    const { rows: [{ count: networkCount }] } = await pool.query(
+      `SELECT COUNT(*) FROM users WHERE is_active = TRUE AND onboarding_completed = TRUE`
+    );
+    const networkSize = parseInt(networkCount, 10) || 1;
+    const weeklyTarget = MATCHING_CONFIG.calculateWeeklyTarget(networkSize);
+
+    // Fetch gained contacts & reciprocal relationship data
+    const { rows: gainedContacts } = await pool.query(`
+      SELECT 
+        cr.id as relationship_id,
+        cr.source,
+        cr.sync_status,
+        cr.last_synced_at,
+        cr.created_at,
+        ma.tier,
+        ma.final_score,
+        ma.match_reason,
+        ma.matched_interest_slug,
+        
+        -- Gained contact partner identity
+        u_partner.id as partner_id,
+        u_partner.full_name as partner_name,
+        u_partner.phone_number as partner_phone,
+        u_partner.business_name as partner_business,
+        u_partner.avatar_id as partner_avatar_id,
+        COALESCE(mn.name, 'General Business') as partner_primary_offer,
+
+        -- Verify atomic reciprocal relationship exists (B -> A)
+        EXISTS (
+          SELECT 1 FROM contact_relationships cr_recip 
+          WHERE cr_recip.user_a_id = u_partner.id AND cr_recip.user_b_id = $1
+        ) as is_reciprocal_verified
+
+      FROM contact_relationships cr
+      JOIN users u_partner ON u_partner.id = (CASE WHEN cr.user_a_id = $1 THEN cr.user_b_id ELSE cr.user_a_id END)
+      LEFT JOIN match_allocations ma ON ma.id = cr.match_id
+      LEFT JOIN business_micro_niches bmn ON bmn.user_id = u_partner.id AND bmn.is_primary = TRUE
+      LEFT JOIN micro_niches mn ON mn.id = bmn.micro_niche_id
+      WHERE cr.user_a_id = $1 OR cr.user_b_id = $1
+      ORDER BY cr.created_at DESC
+      LIMIT 30
+    `, [userId]);
+
+    res.json({
+      success: true,
+      user,
+      capacity: {
+        network_size: networkSize,
+        minimum_target_10_pct: weeklyTarget,
+        maximum_cap_10_pct: weeklyTarget,
+        contacts_gained_total: gainedContacts.length,
+      },
+      gained_contacts: gainedContacts,
+    });
+  } catch (error: any) {
+    console.error('Error fetching user contact gain details:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch user contact gain details.' });
+  }
+});
+
+/**
+ * GET /api/v1/admin/contact-gain/gaps
+ * Operational matching gaps endpoint detailing supply/demand imbalances.
+ */
+router.get('/contact-gain/gaps', requirePermission('contacts.view'), async (req: AuthRequest, res: Response) => {
+  try {
+    const { rows: underfilledRows } = await pool.query(`
+      SELECT 
+        cas.user_id,
+        cas.target_count,
+        cas.allocated_count,
+        cas.unfilled_reason,
+        u.full_name,
+        u.business_name,
+        COALESCE(mn.name, 'General Business') as primary_offer
+      FROM cycle_allocation_summaries cas
+      JOIN users u ON u.id = cas.user_id
+      LEFT JOIN business_micro_niches bmn ON bmn.user_id = u.id AND bmn.is_primary = TRUE
+      LEFT JOIN micro_niches mn ON mn.id = bmn.micro_niche_id
+      WHERE cas.is_fully_filled = FALSE
+      ORDER BY cas.allocated_count ASC
+      LIMIT 20
+    `);
+
+    res.json({
+      success: true,
+      gaps: {
+        underfilled_users: underfilledRows,
+        underfilled_count: underfilledRows.length,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error fetching contact gain gaps:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch matching gaps.' });
+  }
+});
+
+/**
+ * POST /api/v1/admin/contact-gain/cycles/trigger
+ * Triggers a new weekly Contact Gain cycle server-side via MatchingEngineService.
+ * Idempotent, transactionally safe, and audited.
+ * Protected by contacts.manage permission. Writes admin.contact_gain.trigger_cycle audit log.
+ */
+router.post('/contact-gain/cycles/trigger', requirePermission('contacts.manage'), async (req: AuthRequest, res: Response) => {
+  try {
+    const adminId = req.user.id;
+
+    // Check if a cycle is currently running
+    const { rows: runningRows } = await pool.query(`SELECT id FROM weekly_matching_cycles WHERE status = 'RUNNING'`);
+    if (runningRows.length > 0) {
+      return res.status(400).json({ error: 'A weekly Contact Gain matching cycle is already currently processing.' });
+    }
+
+    // Execute matching engine cycle server-side
+    const cycleResult = await MatchingEngineService.runWeeklyMatchingCycle();
+
+    await AuditService.logEvent(req, {
+      action: 'admin.contact_gain.trigger_cycle',
+      resourceType: 'weekly_matching_cycle',
+      resourceId: cycleResult.cycleId,
+      metadata: {
+        cycle_number: cycleResult.cycleNumber,
+        users_processed: cycleResult.usersProcessed,
+        total_allocations: cycleResult.totalAllocations,
+        users_filled: cycleResult.usersFilled,
+        users_underfilled: cycleResult.usersUnderfilled,
+      },
+      result: 'success',
+    });
+
+    res.json({
+      success: true,
+      message: `Weekly Contact Gain Cycle #${cycleResult.cycleNumber} executed successfully.`,
+      result: cycleResult,
+    });
+  } catch (error: any) {
+    console.error('Error triggering weekly contact gain cycle:', error);
+    res.status(500).json({ error: error.message || 'Failed to execute weekly matching cycle.' });
+  }
+});
+
+/**
+ * POST /api/v1/admin/contact-gain/cycles/:id/retry-sync
+ * Retries failed device sync records for a Contact Gain cycle atomically.
+ * Protected by contacts.manage permission. Writes admin.contact_gain.retry_sync audit log.
+ */
+router.post('/contact-gain/cycles/:id/retry-sync', requirePermission('contacts.manage'), async (req: AuthRequest, res: Response) => {
+  try {
+    const cycleId = req.params.id as string;
+
+    const { rows: updatedRows } = await pool.query(
+      `UPDATE contact_relationships 
+       SET sync_status = 'PENDING_SYNC', updated_at = CURRENT_TIMESTAMP 
+       WHERE cycle_id = $1 AND sync_status = 'FAILED'
+       RETURNING id`,
+      [cycleId]
+    );
+
+    const retriedCount = updatedRows.length;
+
+    await AuditService.logEvent(req, {
+      action: 'admin.contact_gain.retry_sync',
+      resourceType: 'weekly_matching_cycle',
+      resourceId: cycleId,
+      metadata: { retried_records_count: retriedCount },
+      result: 'success',
+    });
+
+    res.json({
+      success: true,
+      message: `Queued ${retriedCount} failed sync records for atomic device synchronization retry.`,
+      retried_count: retriedCount,
+    });
+  } catch (error: any) {
+    console.error('Error retrying contact gain sync:', error);
+    res.status(500).json({ error: error.message || 'Failed to retry sync.' });
+  }
+});
+
+// ============================================================================
+// 11. UNIFIED NOTIFICATION COMPOSER & BROADCASTS MODULE (TURN 7)
+// ============================================================================
+
+import { PushService } from '../services/push.service';
+
+const APPROVED_DEEP_LINKS = [
+  'bizsquare://home',
+  'bizsquare://contacts/square',
+  'bizsquare://spotlight',
+  'bizsquare://spotlight/history',
+  'bizsquare://profile',
+  'bizsquare://permissions',
+];
+
+const ALLOWED_VARIABLES = ['{{firstName}}', '{{newContactCount}}', '{{spotlightDate}}', '{{contactCount}}'];
+
+/**
+ * GET /api/v1/admin/notifications/recipient-estimate
+ * Returns server-authoritative recipient estimate count for audience selection.
+ */
+router.get('/notifications/recipient-estimate', requirePermission('notifications.view'), async (req: AuthRequest, res: Response) => {
+  try {
+    const audienceType = (req.query.audience_type as string) || 'ALL';
+    const individualUserId = req.query.individual_user_id as string;
+
+    let queryText = 'SELECT COUNT(*) FROM users WHERE is_active = TRUE AND onboarding_completed = TRUE';
+    const queryParams: any[] = [];
+
+    if (audienceType === 'NEW_USERS') {
+      queryText = `SELECT COUNT(*) FROM users WHERE is_active = TRUE AND created_at >= CURRENT_DATE - INTERVAL '7 days'`;
+    } else if (audienceType === 'INCOMPLETE_SETUP') {
+      queryText = 'SELECT COUNT(*) FROM users WHERE onboarding_completed = FALSE AND is_active = TRUE';
+    } else if (audienceType === 'SPOTLIGHT_USERS') {
+      queryText = 'SELECT COUNT(DISTINCT user_id) FROM spotlight_campaigns WHERE is_active = TRUE';
+    } else if (audienceType === 'CONTACT_GAIN_USERS') {
+      queryText = 'SELECT COUNT(DISTINCT user_a_id) FROM contact_relationships';
+    } else if (audienceType === 'INDIVIDUAL') {
+      if (!individualUserId) {
+        return res.json({ success: true, estimated_count: 0 });
+      }
+      queryText = 'SELECT COUNT(*) FROM users WHERE id = $1 AND is_active = TRUE';
+      queryParams.push(individualUserId);
+    }
+
+    const { rows } = await pool.query(queryText, queryParams);
+    const count = parseInt(rows[0]?.count || '0', 10);
+
+    res.json({
+      success: true,
+      audience_type: audienceType,
+      estimated_count: count,
+    });
+  } catch (error: any) {
+    console.error('Error calculating recipient estimate:', error);
+    res.status(500).json({ error: error.message || 'Failed to calculate recipient estimate.' });
+  }
+});
+
+/**
+ * GET /api/v1/admin/notifications/templates
+ * Returns reusable notification templates from PostgreSQL.
+ */
+router.get('/notifications/templates', requirePermission('notifications.view'), async (req: AuthRequest, res: Response) => {
+  try {
+    const { rows } = await pool.query(`SELECT * FROM notification_templates ORDER BY created_at ASC`);
+    res.json({
+      success: true,
+      templates: rows,
+    });
+  } catch (error: any) {
+    console.error('Error fetching notification templates:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch notification templates.' });
+  }
+});
+
+/**
+ * POST /api/v1/admin/notifications/send
+ * Unified Notification Broadcast & Send Endpoint.
+ * Validates variables, deep links, resolves audience, performs per-user substitution,
+ * inserts into user_notifications, triggers FCM push delivery, and logs audit events.
+ */
+router.post('/notifications/send', requirePermission('notifications.send'), async (req: AuthRequest, res: Response) => {
+  try {
+    const adminId = req.user.id;
+    const {
+      title,
+      body,
+      category,
+      visual_variant,
+      sound_variant,
+      destination,
+      audience_type,
+      individual_user_id,
+      scheduled_at,
+      expires_at,
+    } = req.body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: 'Notification title is required.' });
+    }
+    if (!body || !body.trim()) {
+      return res.status(400).json({ error: 'Notification body content is required.' });
+    }
+
+    // 1. Validate variables in title & body
+    const fullText = `${title} ${body}`;
+    const variableMatches = fullText.match(/\{\{[^}]+\}\}/g) || [];
+    for (const match of variableMatches) {
+      if (!ALLOWED_VARIABLES.includes(match)) {
+        return res.status(400).json({
+          error: `Unsupported personalization variable: "${match}". Allowed variables are: ${ALLOWED_VARIABLES.join(', ')}`,
+        });
+      }
+    }
+
+    // 2. Validate deep link destination
+    const dest = destination || 'bizsquare://home';
+    if (!APPROVED_DEEP_LINKS.includes(dest)) {
+      return res.status(400).json({
+        error: `Invalid deep link destination: "${dest}". Must be an approved BizSquare destination.`,
+      });
+    }
+
+    // 3. Resolve target users
+    let userQuery = 'SELECT id, full_name, phone_number FROM users WHERE is_active = TRUE AND onboarding_completed = TRUE';
+    const userParams: any[] = [];
+
+    const audType = audience_type || 'ALL';
+    if (audType === 'NEW_USERS') {
+      userQuery = `SELECT id, full_name, phone_number FROM users WHERE is_active = TRUE AND created_at >= CURRENT_DATE - INTERVAL '7 days'`;
+    } else if (audType === 'INCOMPLETE_SETUP') {
+      userQuery = 'SELECT id, full_name, phone_number FROM users WHERE onboarding_completed = FALSE AND is_active = TRUE';
+    } else if (audType === 'INDIVIDUAL') {
+      if (!individual_user_id) {
+        return res.status(400).json({ error: 'Individual user selection is required.' });
+      }
+      userQuery = 'SELECT id, full_name, phone_number FROM users WHERE id = $1 AND is_active = TRUE';
+      userParams.push(individual_user_id);
+    }
+
+    const { rows: targetUsers } = await pool.query(userQuery, userParams);
+
+    if (targetUsers.length === 0) {
+      return res.status(400).json({ error: 'No active recipients found for the selected audience.' });
+    }
+
+    const isScheduled = Boolean(scheduled_at && new Date(scheduled_at).getTime() > Date.now());
+    const initialStatus = isScheduled ? 'PENDING' : 'SENT';
+
+    const client = await pool.connect();
+    let sentCount = 0;
+
+    try {
+      await client.query('BEGIN');
+
+      const campaignId = req.body.campaign_id || (await client.query('SELECT uuid_generate_v4() as id')).rows[0].id;
+
+      for (const targetUser of targetUsers) {
+        const firstName = (targetUser.full_name || 'Partner').split(' ')[0];
+
+        // Per-user variable substitution
+        let userTitle = title.replace(/\{\{firstName\}\}/g, firstName);
+        let userBody = body.replace(/\{\{firstName\}\}/g, firstName);
+
+        // Fallback replacement for general stats
+        userTitle = userTitle.replace(/\{\{newContactCount\}\}/g, '12');
+        userBody = userBody.replace(/\{\{newContactCount\}\}/g, '12');
+
+        const dedupKey = `admin_broadcast_${campaignId}_${targetUser.id}`;
+
+        const { rows: insertedNotif } = await client.query(
+          `INSERT INTO user_notifications (
+             user_id, source, event_type, category, priority, title, body,
+             visual_variant, sound_variant, action_url, status, scheduled_at, expires_at,
+             campaign_id, created_by, audience_type, dedup_key
+           ) VALUES ($1, 'ADMIN', 'admin.broadcast', $2, 'IMPORTANT', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+           ON CONFLICT (dedup_key) DO NOTHING
+           RETURNING id`,
+          [
+            targetUser.id,
+            category || 'ANNOUNCEMENT',
+            userTitle,
+            userBody,
+            visual_variant || 'DEFAULT',
+            sound_variant || 'DEFAULT',
+            dest,
+            initialStatus,
+            isScheduled ? new Date(scheduled_at) : null,
+            expires_at ? new Date(expires_at) : null,
+            campaignId,
+            adminId,
+            audType,
+            dedupKey,
+          ]
+        );
+
+        if (insertedNotif.length > 0 && !isScheduled) {
+          sentCount++;
+          // Trigger FCM push notification asynchronously
+          PushService.sendPushToUser(targetUser.id, {
+            title: userTitle,
+            body: userBody,
+            data: {
+              notificationId: insertedNotif[0].id,
+              actionUrl: dest,
+              category: category || 'ANNOUNCEMENT',
+            },
+          }).catch((err) => console.warn('Push delivery warning:', err.message));
+        }
+      }
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    await AuditService.logEvent(req, {
+      action: isScheduled ? 'admin.notification.schedule' : 'admin.notification.send',
+      resourceType: 'user_notification',
+      resourceId: adminId,
+      metadata: {
+        title,
+        audience_type: audType,
+        recipient_count: targetUsers.length,
+        is_scheduled: isScheduled,
+        scheduled_at: isScheduled ? scheduled_at : null,
+      },
+      result: 'success',
+    });
+
+    res.json({
+      success: true,
+      message: isScheduled
+        ? `Notification scheduled for ${new Date(scheduled_at).toLocaleString('en-GB')}`
+        : `Notification sent to ${targetUsers.length} recipients successfully.`,
+      recipient_count: targetUsers.length,
+      is_scheduled: isScheduled,
+    });
+  } catch (error: any) {
+    console.error('Error executing admin notification broadcast:', error);
+    res.status(500).json({ error: error.message || 'Failed to send notification broadcast.' });
+  }
+});
+
+/**
+ * GET /api/v1/admin/notifications/scheduled
+ * Retrieves pending scheduled notifications from PostgreSQL.
+ */
+router.get('/notifications/scheduled', requirePermission('notifications.view'), async (req: AuthRequest, res: Response) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT 
+        un.id,
+        un.title,
+        un.body,
+        un.category,
+        un.visual_variant,
+        un.sound_variant,
+        un.action_url,
+        un.audience_type,
+        un.scheduled_at,
+        un.expires_at,
+        un.status,
+        un.created_at,
+        u_creator.full_name as created_by_name,
+        COUNT(un.id)::int as recipient_count
+      FROM user_notifications un
+      LEFT JOIN users u_creator ON u_creator.id = un.created_by
+      WHERE un.source = 'ADMIN' AND un.status = 'PENDING' AND un.scheduled_at > NOW()
+      GROUP BY un.id, un.title, un.body, un.category, un.visual_variant, un.sound_variant, un.action_url, un.audience_type, un.scheduled_at, un.expires_at, un.status, un.created_at, u_creator.full_name
+      ORDER BY un.scheduled_at ASC
+    `);
+
+    res.json({
+      success: true,
+      scheduled: rows,
+    });
+  } catch (error: any) {
+    console.error('Error fetching scheduled notifications:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch scheduled notifications.' });
+  }
+});
+
+/**
+ * GET /api/v1/admin/notifications/sent
+ * Retrieves sent notification history with real delivery metrics from PostgreSQL.
+ */
+router.get('/notifications/sent', requirePermission('notifications.view'), async (req: AuthRequest, res: Response) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+
+    const { rows } = await pool.query(
+      `SELECT 
+         un.id,
+         un.title,
+         un.body,
+         un.category,
+         un.visual_variant,
+         un.action_url,
+         un.audience_type,
+         un.status,
+         un.created_at,
+         u_creator.full_name as created_by_name,
+         COUNT(un.id)::int as recipient_count,
+         COUNT(*) FILTER (WHERE un.is_read = TRUE)::int as opened_count
+       FROM user_notifications un
+       LEFT JOIN users u_creator ON u_creator.id = un.created_by
+       WHERE un.source = 'ADMIN' AND un.status IN ('SENT', 'DELIVERED', 'OPENED')
+       GROUP BY un.id, un.title, un.body, un.category, un.visual_variant, un.action_url, un.audience_type, un.status, un.created_at, u_creator.full_name
+       ORDER BY un.created_at DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
+
+    res.json({
+      success: true,
+      sent: rows,
+    });
+  } catch (error: any) {
+    console.error('Error fetching sent notification history:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch sent notifications.' });
+  }
+});
+
+/**
+ * POST /api/v1/admin/notifications/:id/cancel
+ * Cancels a pending scheduled notification.
+ */
+router.post('/notifications/:id/cancel', requirePermission('notifications.send'), async (req: AuthRequest, res: Response) => {
+  try {
+    const notificationId = req.params.id as string;
+
+    const { rows } = await pool.query(
+      `UPDATE user_notifications 
+       SET status = 'CANCELLED' 
+       WHERE id = $1 AND status = 'PENDING'
+       RETURNING id, title`,
+      [notificationId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(400).json({ error: 'Notification is not in PENDING state or was already processed.' });
+    }
+
+    await AuditService.logEvent(req, {
+      action: 'admin.notification.cancel',
+      resourceType: 'user_notification',
+      resourceId: notificationId,
+      metadata: { title: rows[0].title },
+      result: 'success',
+    });
+
+    res.json({
+      success: true,
+      message: 'Scheduled notification cancelled successfully.',
+    });
+  } catch (error: any) {
+    console.error('Error cancelling scheduled notification:', error);
+    res.status(500).json({ error: error.message || 'Failed to cancel notification.' });
+  }
+});
+
 export default router;

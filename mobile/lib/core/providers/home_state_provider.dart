@@ -42,15 +42,12 @@ class HomeStateNotifier extends StateNotifier<HomeState> {
     // 1. Load cached data first for instant UI response
     final cachedContactGain = await HomeCacheService.getCachedContactGain();
     final cachedSpotlight = await HomeCacheService.getCachedSpotlight();
-    final cachedNotifications = await HomeCacheService.getCachedNotifications();
     final cachedSetup = await HomeCacheService.getCachedSetupStatus();
 
     if (cachedContactGain != null || cachedSpotlight != null) {
       state = state.copyWith(
         contactGain: cachedContactGain,
         spotlight: cachedSpotlight,
-        notifications: cachedNotifications,
-        unreadNotificationCount: cachedNotifications.where((n) => !n.isRead).length,
         profileCompleted: cachedSetup?['profileCompleted'] ?? (_userState.businessName != null),
         primaryOfferSet: cachedSetup?['primaryOfferSet'] ?? (_userState.primaryMicroNicheId != null),
         interestsSet: cachedSetup?['interestsSet'] ?? (_userState.baselineDemandIds.isNotEmpty),
@@ -79,14 +76,12 @@ class HomeStateNotifier extends StateNotifier<HomeState> {
       final results = await Future.wait([
         _homeService.getContactGainSummary().then<dynamic>((v) => v).catchError((_) => null),
         _spotlightService.getCurrentSpotlight().then<dynamic>((v) => v).catchError((_) => null),
-        _homeService.getNotifications().then<dynamic>((v) => v).catchError((_) => null),
         _homeService.getUserSetupStatus().then<dynamic>((v) => v).catchError((_) => null),
       ]);
 
       final freshContactGain = results[0];
       final freshSpotlight = results[1];
-      final freshNotificationsData = results[2];
-      final freshSetup = results[3];
+      final freshSetup = results[2];
 
       final profileDone = freshSetup != null
           ? (freshSetup['profileCompleted'] == true)
@@ -114,8 +109,6 @@ class HomeStateNotifier extends StateNotifier<HomeState> {
         interestsSet: interestsDone,
         contactGain: freshContactGain ?? state.contactGain,
         spotlight: freshSpotlight ?? state.spotlight,
-        notifications: freshNotificationsData != null ? freshNotificationsData.notifications : state.notifications,
-        unreadNotificationCount: freshNotificationsData != null ? freshNotificationsData.unreadCount : state.unreadNotificationCount,
       );
 
       _recalculateSetupSteps();
@@ -126,9 +119,6 @@ class HomeStateNotifier extends StateNotifier<HomeState> {
       }
       if (freshSpotlight != null) {
         await HomeCacheService.saveSpotlight(freshSpotlight);
-      }
-      if (freshNotificationsData != null) {
-        await HomeCacheService.saveNotifications(freshNotificationsData.notifications);
       }
       if (freshSetup != null) {
         await HomeCacheService.saveSetupStatus(freshSetup);

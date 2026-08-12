@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -31,10 +32,85 @@ import '../../features/profile/screens/account_security_screen.dart';
 import '../../features/home/home_dashboard_screen.dart';
 import '../layout/main_layout.dart';
 import '../models/unified_contact_model.dart';
+import '../providers/auth_state_provider.dart';
+
+/// Protected shell routes — redirect to auth-wall if unauthenticated
+const _protectedPaths = [
+  '/home',
+  '/contacts',
+  '/spotlight',
+  '/profile',
+  '/notifications',
+  '/contacts/archived',
+  '/contacts/details',
+  '/spotlight/history',
+  '/spotlight/edit-content',
+  '/profile/edit',
+  '/profile/offers',
+  '/profile/interests',
+  '/profile/contact-sync',
+  '/profile/notifications',
+  '/profile/privacy',
+  '/profile/account',
+];
+
+/// Auth-only paths — redirect to home if already authenticated
+const _authOnlyPaths = [
+  '/auth-wall',
+  '/login',
+  '/register-steps',
+  '/onboarding',
+];
 
 final routerProvider = Provider<GoRouter>((ref) {
-  return GoRouter(
+  // Notifier that GoRouter will listen to for refresh signals
+  final routerListenable = _AuthStateListenable(ref);
+
+  final router = GoRouter(
     initialLocation: '/splash',
+    refreshListenable: routerListenable,
+    redirect: (context, state) {
+      final userState = ref.read(userStateProvider);
+      final location = state.matchedLocation;
+
+      final isAuthenticated = userState.isAuthenticated;
+      final hasOnboarded = userState.hasOnboarded;
+      final onboardingCompleted = userState.onboardingCompleted;
+
+      // Skip splash — it handles its own routing logic
+      if (location == '/splash') return null;
+
+      // If user is authenticated but hasn't completed onboarding,
+      // allow them to continue through register-steps
+      if (isAuthenticated && !onboardingCompleted) {
+        if (location == '/register-steps' || location == '/permissions-wall') {
+          return null;
+        }
+        return '/register-steps';
+      }
+
+      // Authenticated user trying to access auth screens → send to home
+      if (isAuthenticated && onboardingCompleted) {
+        if (_authOnlyPaths.contains(location)) {
+          return '/home';
+        }
+        return null;
+      }
+
+      // Unauthenticated user trying to access protected screens → send to auth
+      if (!isAuthenticated) {
+        if (_protectedPaths.any((p) => location.startsWith(p))) {
+          if (hasOnboarded) {
+            return '/auth-wall';
+          } else {
+            return '/onboarding';
+          }
+        }
+        return null;
+      }
+
+      return null;
+    },
     routes: [
       GoRoute(
         path: '/splash',
@@ -63,10 +139,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/daily-wall',
         builder: (context, state) => const DailyInteractiveWallScreen(),
-      ),
-      GoRoute(
-        path: '/my-interests',
-        builder: (context, state) => const ManageInterestsScreen(),
       ),
       GoRoute(
         path: '/notifications',
@@ -164,4 +236,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+
+  return router;
 });
+
+/// Listenable that triggers GoRouter.refresh() when auth state changes
+class _AuthStateListenable extends ChangeNotifier {
+  _AuthStateListenable(Ref ref) {
+    ref.listen(userStateProvider, (previous, next) {
+      if (previous?.isAuthenticated != next.isAuthenticated ||
+          previous?.onboardingCompleted != next.onboardingCompleted) {
+        notifyListeners();
+      }
+    });
+  }
+}

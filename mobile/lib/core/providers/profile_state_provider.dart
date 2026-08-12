@@ -2,10 +2,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/user_profile_model.dart';
 import '../services/biometric_service.dart';
+import '../services/contact_sync_cache.dart';
 import '../services/profile_cache_service.dart';
 import '../services/profile_service.dart';
 import 'auth_state_provider.dart';
 import 'contacts_state_provider.dart';
+import 'home_state_provider.dart';
 import 'permission_state_provider.dart';
 
 class ProfileState {
@@ -102,6 +104,7 @@ class ProfileStateNotifier extends StateNotifier<ProfileState> {
     final cachedSetup = await _cacheService.getCachedSetupStatus();
     final cachedNotif = await _cacheService.getNotificationPrefs();
     final cachedPriv = await _cacheService.getPrivacyPrefs();
+    final cachedLastSync = await ContactSyncCache.getLastSyncedAt();
 
     final permissionState = _ref.read(permissionStateProvider);
 
@@ -113,6 +116,7 @@ class ProfileStateNotifier extends StateNotifier<ProfileState> {
         privacyPrefs: cachedPriv,
         isLoading: false,
         hasContactsPermission: permissionState.contactsGranted,
+        lastSyncedAt: cachedLastSync,
       );
     } else {
       state = state.copyWith(isLoading: true);
@@ -179,6 +183,9 @@ class ProfileStateNotifier extends StateNotifier<ProfileState> {
             avatarId: updated.avatarId,
           );
 
+      // Invalidate Home so setup banner / greeting reflect changes
+      _ref.invalidate(homeStateProvider);
+
       return true;
     } catch (e) {
       debugPrint('Update profile error: $e');
@@ -220,6 +227,9 @@ class ProfileStateNotifier extends StateNotifier<ProfileState> {
       state = state.copyWith(setupStatus: setup);
       await _cacheService.cacheSetupStatus(setup);
 
+      // Invalidate Home so setup banner reflects new offer completion
+      _ref.invalidate(homeStateProvider);
+
       return true;
     } catch (e) {
       debugPrint('Update offers error: $e');
@@ -251,6 +261,9 @@ class ProfileStateNotifier extends StateNotifier<ProfileState> {
 
       await _cacheService.cacheProfile(fresh);
       await _cacheService.cacheSetupStatus(setup);
+
+      // Invalidate Home so setup banner reflects new interests completion
+      _ref.invalidate(homeStateProvider);
 
       return true;
     } catch (e) {
@@ -306,9 +319,12 @@ class ProfileStateNotifier extends StateNotifier<ProfileState> {
       final contactsNotifier = _ref.read(contactsStateProvider.notifier);
       await contactsNotifier.requestContactsPermission();
       await contactsNotifier.refresh();
+      final syncTime = DateTime.now();
+      // Persist sync timestamp as single source of truth
+      await ContactSyncCache.saveLastSyncedAt(syncTime);
       state = state.copyWith(
         isSaving: false,
-        lastSyncedAt: DateTime.now(),
+        lastSyncedAt: syncTime,
         hasContactsPermission: true,
       );
     } catch (_) {
@@ -320,7 +336,10 @@ class ProfileStateNotifier extends StateNotifier<ProfileState> {
   Future<void> signOut() async {
     await _cacheService.clearCache();
     await _biometricService.clearLinkedAccount();
+    await ContactSyncCache.clear();
     _ref.read(userStateProvider.notifier).logout();
+    // GoRouter redirect guard picks up isAuthenticated = false
+    // and navigates to /auth-wall automatically.
   }
 
   /// Deactivates user account

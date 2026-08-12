@@ -18,6 +18,9 @@ class HomeDashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final homeState = ref.watch(homeStateProvider);
+    // notificationsStateProvider is the single source of truth for
+    // unread count (badge) and recent activity preview on Home.
+    final notifState = ref.watch(notificationsStateProvider);
     final theme = Theme.of(context);
 
     if (homeState.isLoading && homeState.contactGain == null && homeState.spotlight == null) {
@@ -31,11 +34,18 @@ class HomeDashboardScreen extends ConsumerWidget {
       );
     }
 
+    // Show top 3 recent notifications in the Home activity section
+    final recentNotifs = notifState.notifications.take(3).toList();
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: () => ref.read(homeStateProvider.notifier).refresh(),
+          onRefresh: () async {
+            await ref.read(homeStateProvider.notifier).refresh();
+            // Also refresh notifications so the activity section stays current
+            await ref.read(notificationsStateProvider.notifier).loadNotifications(isRefresh: true);
+          },
           color: const Color(0xFF0058FF),
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
@@ -47,11 +57,13 @@ class HomeDashboardScreen extends ConsumerWidget {
                 OfflineBanner(isOffline: homeState.isOffline),
 
                 // 2. Home Header (Greeting + Hugeicons Notification Bell)
+                // unreadCount is read directly from notificationsStateProvider —
+                // the single source of truth for the badge.
                 HomeHeader(
                   userName: homeState.userName,
                   businessName: homeState.businessName,
                   avatarId: homeState.avatarId,
-                  unreadCount: ref.watch(notificationsStateProvider).unreadCount,
+                  unreadCount: notifState.unreadCount,
                   isNewUser: homeState.isNewUser,
                 ),
 
@@ -103,10 +115,10 @@ class HomeDashboardScreen extends ConsumerWidget {
                   SpotlightHomeCard(spotlight: homeState.spotlight),
                 ],
 
-                // 4. Recent Activity / Notifications Section
-                if (homeState.notifications.isNotEmpty) ...[
+                // 4. Recent Activity Section — sourced from notificationsStateProvider
+                if (recentNotifs.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  RecentActivitySection(notifications: homeState.notifications),
+                  RecentActivitySection(notifications: recentNotifs),
                 ],
               ],
             ),

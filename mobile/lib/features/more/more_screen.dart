@@ -139,7 +139,7 @@ class MoreScreen extends ConsumerWidget {
             label: 'My Interests',
             subtitle: 'Manage baseline categories & demand graph',
             isDark: isDark,
-            onTap: () => context.go('/my-interests'),
+            onTap: () => context.go('/profile/interests'),
           ),
           const SizedBox(height: 20),
 

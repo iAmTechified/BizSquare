@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/unified_contact_model.dart';
 import '../services/contact_repository.dart';
+import '../services/contact_sync_cache.dart';
 import '../services/contact_sync_engine.dart';
 import '../services/device_contacts_adapter.dart';
 
@@ -155,6 +156,8 @@ class ContactsStateNotifier extends StateNotifier<ContactsState> {
     // 4. Background device sync if permission granted
     if (hasPerm && square.isNotEmpty) {
       _syncEngine.syncSquareContactsToDevice(square);
+      // Record successful sync timestamp as single source of truth
+      await ContactSyncCache.saveLastSyncedAt(DateTime.now());
     }
   }
 
@@ -336,6 +339,7 @@ class ContactsStateNotifier extends StateNotifier<ContactsState> {
     final granted = await DeviceContactsAdapter.requestPermission();
     if (granted) {
       await loadContacts();
+      // Timestamp recorded in loadContacts() → ContactSyncCache
     } else {
       final permStatus = await Permission.contacts.status;
       state = state.copyWith(

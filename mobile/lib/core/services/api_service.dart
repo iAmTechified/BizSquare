@@ -1,13 +1,15 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/auth_state_provider.dart';
 
 final apiServiceProvider = Provider<ApiService>((ref) {
-  return ApiService();
+  return ApiService(ref: ref);
 });
 
 class ApiService {
   late final Dio _dio;
+  final Ref? _ref;
 
   static const String liveProductionUrl = 'https://bizsquare-backend.onrender.com/api/v1';
 
@@ -15,13 +17,27 @@ class ApiService {
     return liveProductionUrl;
   }
 
-  ApiService({String? baseUrl}) {
+  ApiService({String? baseUrl, Ref? ref}) : _ref = ref {
     _dio = Dio(
       BaseOptions(
         baseUrl: baseUrl ?? defaultBaseUrl,
         connectTimeout: const Duration(seconds: 10),
         receiveTimeout: const Duration(seconds: 15),
         headers: {'Content-Type': 'application/json'},
+      ),
+    );
+
+    // Add 401 session expiry interceptor
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onError: (DioException error, ErrorInterceptorHandler handler) {
+          if (error.response?.statusCode == 401 && _ref != null) {
+            debugPrint('[ApiService] 401 Unauthorized — clearing session and logging out.');
+            // Fire-and-forget logout; GoRouter redirect guard picks up the state change
+            _ref.read(userStateProvider.notifier).logout();
+          }
+          handler.next(error);
+        },
       ),
     );
   }

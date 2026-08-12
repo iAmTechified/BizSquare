@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/contact_gain_summary_model.dart';
-import '../models/notification_model.dart';
 import 'api_service.dart';
 
 final homeServiceProvider = Provider<HomeService>((ref) {
@@ -49,31 +48,5 @@ class HomeService {
       'interestsSet': false,
       'onboardingCompleted': false,
     };
-  }
-
-  /// Fetches user notifications
-  Future<({List<InAppNotificationItem> notifications, int unreadCount})> getNotifications() async {
-    try {
-      final response = await _api.dio.get('/notifications');
-      if (response.data != null && response.data['data'] != null) {
-        final data = response.data['data'] as Map<String, dynamic>;
-        final list = (data['notifications'] as List<dynamic>? ?? [])
-            .map((e) => InAppNotificationItem.fromJson(e as Map<String, dynamic>))
-            .toList();
-        final unread = data['unreadCount'] as int? ?? 0;
-        return (notifications: list, unreadCount: unread);
-      }
-    } catch (_) {}
-    return (notifications: <InAppNotificationItem>[], unreadCount: 0);
-  }
-
-  /// Marks all notifications as read
-  Future<void> markNotificationsRead([List<String>? notificationIds]) async {
-    try {
-      await _api.dio.post(
-        '/notifications/mark-read',
-        data: {'notificationIds': notificationIds},
-      );
-    } catch (_) {}
   }
 }

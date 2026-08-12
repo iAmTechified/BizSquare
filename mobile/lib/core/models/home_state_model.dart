@@ -1,7 +1,8 @@
 import 'contact_gain_summary_model.dart';
 import 'spotlight_model.dart';
-import 'notification_model.dart';
 
+/// HomeState no longer tracks notifications — those are owned by
+/// notificationsStateProvider which is the single source of truth.
 class HomeState {
   final String? userName;
   final String? businessName;
@@ -27,10 +28,6 @@ class HomeState {
   // Spotlight
   final SpotlightCurrentModel? spotlight;
 
-  // Notifications
-  final List<InAppNotificationItem> notifications;
-  final int unreadNotificationCount;
-
   const HomeState({
     this.userName,
     this.businessName,
@@ -49,8 +46,6 @@ class HomeState {
     this.notificationsPermissionGranted = false,
     this.contactGain,
     this.spotlight,
-    this.notifications = const [],
-    this.unreadNotificationCount = 0,
   });
 
   bool get isFullySetup => completedSetupSteps >= totalSetupSteps;
@@ -73,8 +68,6 @@ class HomeState {
     bool? notificationsPermissionGranted,
     ContactGainSummaryModel? contactGain,
     SpotlightCurrentModel? spotlight,
-    List<InAppNotificationItem>? notifications,
-    int? unreadNotificationCount,
   }) {
     return HomeState(
       userName: userName ?? this.userName,
@@ -94,8 +87,6 @@ class HomeState {
       notificationsPermissionGranted: notificationsPermissionGranted ?? this.notificationsPermissionGranted,
       contactGain: contactGain ?? this.contactGain,
       spotlight: spotlight ?? this.spotlight,
-      notifications: notifications ?? this.notifications,
-      unreadNotificationCount: unreadNotificationCount ?? this.unreadNotificationCount,
     );
   }
 }

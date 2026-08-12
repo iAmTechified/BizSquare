@@ -15,15 +15,28 @@ class AuthWallScreen extends ConsumerStatefulWidget {
   ConsumerState<AuthWallScreen> createState() => _AuthWallScreenState();
 }
 
-class _AuthWallScreenState extends ConsumerState<AuthWallScreen> {
+class _AuthWallScreenState extends ConsumerState<AuthWallScreen> with SingleTickerProviderStateMixin {
   bool _hasLinkedAccount = false;
   Map<String, dynamic>? _linkedAccount;
   bool _isAuthenticating = false;
+
+  late AnimationController _floatController;
+  late Animation<double> _floatAnimation;
 
   @override
   void initState() {
     super.initState();
     _checkLinkedAccount();
+
+    // Dynamic continuous floating physics for the hero illustration
+    _floatController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat(reverse: true);
+
+    _floatAnimation = Tween<double>(begin: -8.0, end: 8.0).animate(
+      CurvedAnimation(parent: _floatController, curve: Curves.easeInOutSine),
+    );
   }
 
   Future<void> _checkLinkedAccount() async {
@@ -79,6 +92,12 @@ class _AuthWallScreenState extends ConsumerState<AuthWallScreen> {
   }
 
   @override
+  void dispose() {
+    _floatController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -96,17 +115,17 @@ class _AuthWallScreenState extends ConsumerState<AuthWallScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Column(
             children: [
-              // 1. Top Logo Header
+              // 1. Top Logo Header (FREELY STANDING, UNBOXED, NO CARD)
               Align(
                 alignment: Alignment.centerLeft,
                 child: Image.asset(
                   isDark
                       ? 'assets/images/bizsquare_full_white.png'
                       : 'assets/images/bizsquare_full_black.png',
-                  height: 32,
+                  height: 34,
                   errorBuilder: (_, __, ___) => Row(
                     children: [
-                      Image.asset('assets/images/bizsquare_icon.png', height: 30),
+                      Image.asset('assets/images/bizsquare_icon.png', height: 32),
                       const SizedBox(width: 8),
                       Text(
                         'BizSquare',
@@ -121,9 +140,9 @@ class _AuthWallScreenState extends ConsumerState<AuthWallScreen> {
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
 
-              // 2. Headline & Subtitle (Focused on Business Growth)
+              // 2. Headline & Subtitle (Centered on Business Growth)
               Align(
                 alignment: Alignment.centerLeft,
                 child: Column(
@@ -153,85 +172,52 @@ class _AuthWallScreenState extends ConsumerState<AuthWallScreen> {
                 ),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
 
-              // 3. Central Hero Graphic / Subject Container (Non-scrolling, easy to replace asset later)
+              // 3. Dynamic Floating Hero 2D Goofy Illustration (NOT A CARD, FREELY STANDING ARTWORK)
               Expanded(
                 child: Center(
-                  child: Container(
-                    width: double.infinity,
-                    constraints: const BoxConstraints(maxWidth: 360, maxHeight: 300),
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF131C31) : Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0),
-                        width: 1.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF0058FF).withValues(alpha: isDark ? 0.2 : 0.08),
-                          blurRadius: 32,
-                          offset: const Offset(0, 12),
-                        ),
-                      ],
-                    ),
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Central Graphic Avatar/Badge Illustration
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: const Color(0xFF0058FF).withValues(alpha: 0.12),
-                            border: Border.all(
-                              color: const Color(0xFF0058FF).withValues(alpha: 0.3),
-                              width: 2,
-                            ),
-                          ),
-                          child: const Center(
-                            child: HugeIcon(
-                              icon: HugeIcons.strokeRoundedStore01,
-                              color: Color(0xFF0058FF),
-                              size: 40,
+                  child: AnimatedBuilder(
+                    animation: _floatAnimation,
+                    builder: (context, child) {
+                      return Transform.translate(
+                        offset: Offset(0, _floatAnimation.value),
+                        child: Container(
+                          constraints: const BoxConstraints(maxWidth: 320, maxHeight: 280),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(24),
+                            child: Image.asset(
+                              'assets/images/auth_hero_illustration.jpg',
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0058FF).withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
+                                child: const Center(
+                                  child: HugeIcon(
+                                    icon: HugeIcons.strokeRoundedStore01,
+                                    color: Color(0xFF0058FF),
+                                    size: 48,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 16),
-
-                        Text(
-                          'Your Business Hub',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Buyers • Sales • Product Visibility',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF0058FF),
-                          ),
-                        ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
                 ),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
 
-              // 4. Fixed Bottom Section (Never Scrolls, Pinned to Bottom)
+              // 4. Fixed Bottom Bar (Always Pinned to Bottom, Never Scrolls)
               Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Biometric Quick Sign-In (If Linked Account Exists)
+                  // Biometric Quick Sign-In Bar (If Linked Account Exists)
                   if (_hasLinkedAccount && linkedBusinessName != null) ...[
                     Container(
                       margin: const EdgeInsets.only(bottom: 12),

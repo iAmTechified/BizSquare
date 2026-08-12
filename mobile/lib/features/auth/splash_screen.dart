@@ -354,9 +354,9 @@ class _GradientRotation extends GradientTransform {
   @override
   Matrix4 transform(Rect bounds, {TextDirection? textDirection}) {
     final center = bounds.center;
-    final m = Matrix4.translationValues(center.dx, center.dy, 0.0);
-    m.rotateZ(radians);
-    m.translate(-center.dx, -center.dy);
-    return m;
+    return Matrix4.identity()
+      ..translate(center.dx, center.dy)
+      ..rotateZ(radians)
+      ..translate(-center.dx, -center.dy);
   }
 }

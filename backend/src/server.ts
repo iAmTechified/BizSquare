@@ -24,8 +24,14 @@ import { MatchingEngineService } from './services/matching/matching_engine.servi
 import { DemandService } from './services/demand.service';
 import { InterestStateService } from './services/interest_state.service';
 import { RetentionService } from './services/retention.service';
+import { migrateV10AdminFoundation } from './db/migrate_v10_admin_foundation';
 
 dotenv.config();
+
+// Run DB migrations
+migrateV10AdminFoundation().catch(err => {
+  console.warn('V10 Admin foundation migration warning:', err.message);
+});
 
 const app = express();
 const port = process.env.PORT || 8080;

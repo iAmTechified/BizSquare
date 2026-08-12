@@ -7,6 +7,7 @@ import 'core/providers/permission_state_provider.dart';
 import 'core/providers/notifications_state_provider.dart';
 import 'core/services/api_service.dart';
 import 'core/services/push_notification_service.dart';
+import 'core/services/unified_notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -102,10 +103,11 @@ class _BizSquareAppState extends ConsumerState<BizSquareApp>
     final userState = ref.read(userStateProvider);
     if (!userState.isAuthenticated) return;
 
-    // Initialize push service (registers token, sets up handlers)
+    // Initialize push service and unified notification foundation
     final api = ref.read(apiServiceProvider);
     PushNotificationService.instance.setApiService(api);
     await PushNotificationService.instance.initialize();
+    await ref.read(unifiedNotificationServiceProvider).initialize();
 
     // Resolve any pending deep link from terminated-state push tap
     if (_pendingDeepLink != null) {

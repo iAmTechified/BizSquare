@@ -1,250 +1,113 @@
 import { useState, useEffect } from 'react';
-import { NetworkOverview } from './components/NetworkOverview';
-import { UserManagement } from './components/UserManagement';
-import { ContentEngineDashboard } from './components/ContentEngineDashboard';
-import { MatchingEngineDashboard } from './components/MatchingEngineDashboard';
-import { SpotlightDashboard } from './components/SpotlightDashboard';
-import { PointsLedger } from './components/PointsLedger';
-import { LoginPage } from './components/LoginPage';
-import { getToken, clearToken } from './api/adminApi';
-import {
-  Zap, Users, Sparkles,
-  Star, Coins, LayoutDashboard, LogOut, Activity
-} from 'lucide-react';
+import { ToastProvider } from './context/ToastContext';
+import { ConfirmationProvider } from './context/ConfirmationContext';
+import { AdminAuthProvider, useAdminAuth } from './context/AdminAuthContext';
+import { AdminShell } from './components/shell/AdminShell';
+import { AdminRoute } from './components/shell/Sidebar';
+import { OverviewPage } from './pages/OverviewPage';
+import { SystemHealthPage } from './pages/SystemHealthPage';
+import { AuditLogPage } from './pages/AuditLogPage';
+import { LoginPage } from './pages/LoginPage';
+import { AccessDeniedPage } from './pages/AccessDeniedPage';
+import { GlobalLoadingState } from './components/common/GlobalLoadingState';
+import { GlobalErrorState } from './components/common/GlobalErrorState';
+import { BreadcrumbItem } from './components/common/Breadcrumbs';
 import './index.css';
 
-// ─── Section Types ─────────────────────────────────────────────────────────
+function MainAppContent() {
+  const { status, isLoading, verifySession, hasPermission } = useAdminAuth();
+  const [currentRoute, setCurrentRoute] = useState<AdminRoute>('overview');
 
-type Section = 'overview' | 'users' | 'matching' | 'content' | 'spotlight' | 'ledger';
-
-interface NavItem {
-  id: Section;
-  label: string;
-  icon: typeof Shield;
-  badge?: string;
-  badgeType?: 'default' | 'danger';
-}
-
-const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
-  {
-    label: 'Analytics',
-    items: [
-      { id: 'overview', label: 'Network Overview', icon: LayoutDashboard },
-    ],
-  },
-  {
-    label: 'Engine',
-    items: [
-      { id: 'matching', label: 'Matching Engine', icon: Zap },
-      { id: 'content', label: 'Interest & Content', icon: Sparkles },
-    ],
-  },
-  {
-    label: 'Users & Economy',
-    items: [
-      { id: 'users', label: 'User Management', icon: Users },
-      { id: 'spotlight', label: 'Spotlight Economy', icon: Star },
-      { id: 'ledger', label: 'Points Ledger', icon: Coins },
-    ],
-  },
-];
-
-// ─── Sidebar ──────────────────────────────────────────────────────────────
-
-function Sidebar({
-  current,
-  onNavigate,
-  onLogout,
-}: {
-  current: Section;
-  onNavigate: (s: Section) => void;
-  onLogout: () => void;
-}) {
-  return (
-    <aside className="sidebar">
-      {/* Logo */}
-      <div className="sidebar-logo">
-        <div className="sidebar-logo-icon">
-          <img src="/logo.png" alt="BizSquare" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        </div>
-        <span className="sidebar-logo-text">BizSquare</span>
-        <span className="sidebar-logo-badge">Admin</span>
-      </div>
-
-      {/* Navigation */}
-      <nav className="sidebar-nav">
-        {NAV_GROUPS.map((group) => (
-          <div className="sidebar-section" key={group.label} style={{ padding: '0.75rem 0 0.25rem' }}>
-            <div className="sidebar-section-label">{group.label}</div>
-            {group.items.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  className={`nav-item ${current === item.id ? 'active' : ''}`}
-                  onClick={() => onNavigate(item.id)}
-                >
-                  <Icon size={15} />
-                  {item.label}
-                  {item.badge && (
-                    <span className={`nav-item-badge ${item.badgeType === 'danger' ? 'danger' : ''}`}>
-                      {item.badge}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        ))}
-      </nav>
-
-      {/* Footer */}
-      <div className="sidebar-footer">
-        <div className="sidebar-user">
-          <div className="sidebar-avatar">AD</div>
-          <div className="sidebar-user-info">
-            <div className="sidebar-user-name">Super Admin</div>
-            <div className="sidebar-user-role">Full Access</div>
-          </div>
-          <button
-            onClick={onLogout}
-            title="Sign out"
-            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', padding: 4 }}
-          >
-            <LogOut size={14} />
-          </button>
-        </div>
-      </div>
-    </aside>
-  );
-}
-
-// ─── Top Bar ──────────────────────────────────────────────────────────────
-
-const SECTION_TITLES: Record<Section, { label: string; desc: string }> = {
-  overview: { label: 'Network Overview', desc: 'Real-time health of the Akawo network' },
-  matching: { label: 'Matching Engine', desc: 'Weekly contact-gain cycles & explainability' },
-  content: { label: 'Interest & Content', desc: 'Scenario cards, taxonomy, and content bank' },
-  users: { label: 'User Management', desc: 'Manage accounts, suspend users, adjust points' },
-  spotlight: { label: 'Spotlight Economy', desc: 'Daily campaigns, participants & point rewards' },
-  ledger: { label: 'Points Ledger', desc: 'Full audit log of all Akawo Points transactions' },
-};
-
-function Topbar({
-  section,
-}: {
-  section: Section;
-}) {
-  const { label } = SECTION_TITLES[section];
-
-  return (
-    <header className="topbar">
-      <div className="topbar-breadcrumb">
-        <span className="topbar-breadcrumb-root">Admin</span>
-        <span className="topbar-breadcrumb-sep">/</span>
-        <span className="topbar-breadcrumb-current">{label}</span>
-      </div>
-
-      <div className="topbar-actions">
-        {/* Live indicator */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          fontSize: 12, fontWeight: 700, color: 'var(--brand-green)',
-          background: 'var(--brand-green-dim)', padding: '4px 10px',
-          borderRadius: 99, border: '1px solid rgba(90,255,0,0.15)',
-        }}>
-          <Activity size={11} />
-          Live
-        </div>
-      </div>
-    </header>
-  );
-}
-
-// ─── Page Content Renderer ────────────────────────────────────────────────
-
-function PageContent({ section }: { section: Section }) {
-  switch (section) {
-    case 'overview':
-      return (
-        <>
-          <div className="page-header fade-up">
-            <div className="page-header-left">
-              <h1 className="page-title">Network Overview</h1>
-              <p className="page-subtitle">Real-time snapshot of the Akawo network health.</p>
-            </div>
-          </div>
-          <NetworkOverview />
-        </>
-      );
-
-    case 'users':
-      return (
-        <>
-          <div className="page-header fade-up">
-            <div className="page-header-left">
-              <h1 className="page-title">User Management</h1>
-              <p className="page-subtitle">View all users, manage status, and adjust Akawo Points.</p>
-            </div>
-          </div>
-          <UserManagement />
-        </>
-      );
-
-    case 'matching':
-      return <MatchingEngineDashboard />;
-
-    case 'content':
-      return <ContentEngineDashboard />;
-
-    case 'spotlight':
-      return <SpotlightDashboard />;
-
-    case 'ledger':
-      return <PointsLedger />;
-
-    default:
-      return null;
-  }
-}
-
-// ─── App Root ─────────────────────────────────────────────────────────────
-
-function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => !!getToken());
-  const [section, setSection] = useState<Section>('overview');
-
-  // Always dark — set once on mount
+  // Enforce Dark Mode on mount
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', 'dark');
     document.documentElement.style.colorScheme = 'dark';
   }, []);
 
-  const handleLogout = () => {
-    clearToken();
-    setIsAuthenticated(false);
+  // Show full page loading skeleton during initialization
+  if (status === 'INITIALIZING' || (isLoading && status !== 'AUTHENTICATED')) {
+    return <GlobalLoadingState type="page" message="Verifying administrative session & credentials…" />;
+  }
+
+  // Handle unauthenticated state
+  if (status === 'UNAUTHENTICATED') {
+    return <LoginPage />;
+  }
+
+  // Handle authorization access denied state
+  if (status === 'ACCESS_DENIED') {
+    return <AccessDeniedPage />;
+  }
+
+  // Handle network / server connectivity error state
+  if (status === 'NETWORK_ERROR') {
+    return (
+      <GlobalErrorState
+        type="network"
+        title="Backend Unreachable"
+        message="Could not connect to BizSquare backend server to verify administrative session."
+        onRetry={verifySession}
+      />
+    );
+  }
+
+  // Route metadata mapping
+  const routeMeta: Record<AdminRoute, { title: string; breadcrumb: string; permission?: string }> = {
+    overview: { title: 'Admin Overview', breadcrumb: 'Overview' },
+    system: { title: 'System Health & Monitoring', breadcrumb: 'System Health', permission: 'system.view' },
+    audit: { title: 'Administrative Audit Log', breadcrumb: 'Audit Log', permission: 'audit.view' },
   };
 
-  if (!isAuthenticated) {
-    return <LoginPage onLogin={() => setIsAuthenticated(true)} />;
+  const currentMeta = routeMeta[currentRoute] || routeMeta.overview;
+
+  // Permission check for protected sub-routes
+  if (currentMeta.permission && !hasPermission(currentMeta.permission)) {
+    return (
+      <AdminShell
+        currentRoute={currentRoute}
+        onNavigate={setCurrentRoute}
+        title="Access Denied"
+        breadcrumbItems={[{ label: 'Access Denied' }]}
+      >
+        <AccessDeniedPage
+          requiredPermission={currentMeta.permission}
+          onGoHome={() => setCurrentRoute('overview')}
+        />
+      </AdminShell>
+    );
+  }
+
+  const breadcrumbs: BreadcrumbItem[] = [
+    { label: 'Overview', onClick: currentRoute !== 'overview' ? () => setCurrentRoute('overview') : undefined },
+  ];
+
+  if (currentRoute !== 'overview') {
+    breadcrumbs.push({ label: currentMeta.breadcrumb });
   }
 
   return (
-    <div className="app-shell">
-      <Sidebar
-        current={section}
-        onNavigate={setSection}
-        onLogout={handleLogout}
-      />
+    <AdminShell
+      currentRoute={currentRoute}
+      onNavigate={setCurrentRoute}
+      title={currentMeta.title}
+      breadcrumbItems={breadcrumbs}
+    >
+      {currentRoute === 'overview' && <OverviewPage onNavigate={setCurrentRoute} />}
+      {currentRoute === 'system' && <SystemHealthPage />}
+      {currentRoute === 'audit' && <AuditLogPage />}
+    </AdminShell>
+  );
+}
 
-      <div className="main-wrapper">
-        <Topbar section={section} />
-
-        <main className="page-content" key={section}>
-          <PageContent section={section} />
-        </main>
-      </div>
-    </div>
+function App() {
+  return (
+    <ToastProvider>
+      <ConfirmationProvider>
+        <AdminAuthProvider>
+          <MainAppContent />
+        </AdminAuthProvider>
+      </ConfirmationProvider>
+    </ToastProvider>
   );
 }
 

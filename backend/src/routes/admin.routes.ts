@@ -271,7 +271,7 @@ router.post('/notifications/send', requireAdmin, async (req: AuthRequest, res: R
     }
 
     // 1. Fetch target users with real user attributes for personalization (Section 4)
-    let userQuery = `SELECT id, full_name, first_name, business_name FROM users WHERE is_active = TRUE`;
+    let userQuery = `SELECT id, full_name, business_name FROM users WHERE is_active = TRUE`;
     const queryParams: any[] = [];
 
     if (audience === 'new') {
@@ -281,9 +281,9 @@ router.post('/notifications/send', requireAdmin, async (req: AuthRequest, res: R
     } else if (audience === 'inactive') {
       userQuery += ` AND updated_at < NOW() - INTERVAL '14 days'`;
     } else if (audience === 'spotlight') {
-      userQuery = `SELECT u.id, u.full_name, u.first_name, u.business_name FROM users u JOIN spotlight_campaigns sc ON sc.user_id = u.id WHERE sc.is_active = TRUE`;
+      userQuery = `SELECT u.id, u.full_name, u.business_name FROM users u JOIN spotlight_campaigns sc ON sc.user_id = u.id WHERE sc.is_active = TRUE`;
     } else if (audience === 'contact_gain') {
-      userQuery = `SELECT DISTINCT u.id, u.full_name, u.first_name, u.business_name FROM users u JOIN contacts c ON c.user_id = u.id`;
+      userQuery = `SELECT DISTINCT u.id, u.full_name, u.business_name FROM users u JOIN contacts c ON c.user_id = u.id`;
     } else if (audience === 'incomplete_setup') {
       userQuery += ` AND onboarding_completed = FALSE`;
     } else if (audience === 'individual' && targetUserId) {
@@ -303,7 +303,7 @@ router.post('/notifications/send', requireAdmin, async (req: AuthRequest, res: R
     let suppressedCount = 0;
 
     for (const u of targetUsers) {
-      const firstName = u.first_name || (u.full_name ? u.full_name.split(' ')[0] : 'Partner');
+      const firstName = u.full_name ? u.full_name.split(' ')[0] : 'Partner';
 
       // Personalize copy dynamically with safe variable replacement (Section 4)
       let personalizedTitle = title.replace(/\{\{firstName\}\}/g, firstName);

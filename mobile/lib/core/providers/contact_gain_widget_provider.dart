@@ -40,7 +40,7 @@ final contactGainWidgetProvider = Provider<ContactGainWidgetData>((ref) {
     headline = "You're offline";
     subtitle = summary?.gainedThisWeek != null && summary!.gainedThisWeek > 0
         ? "Showing ${summary.gainedThisWeek} contacts from latest cached update"
-        : "Showing your latest network update";
+        : "Showing your latest community update";
     contactCount = summary?.gainedThisWeek ?? 0;
     actionLabel = "View";
     deepLink = "/contacts";
@@ -49,7 +49,7 @@ final contactGainWidgetProvider = Provider<ContactGainWidgetData>((ref) {
   else if (!permState.isContactsGranted || !homeState.contactsPermissionGranted) {
     stateType = ContactGainWidgetStateType.setupRequired;
     headline = "Contact Gain needs setup";
-    subtitle = "Turn on contact sync to receive your weekly network batch";
+    subtitle = "Turn on contact sync to receive your weekly community batch";
     contactCount = 0;
     actionLabel = "Fix";
     deepLink = "/permissions-wall";
@@ -66,7 +66,7 @@ final contactGainWidgetProvider = Provider<ContactGainWidgetData>((ref) {
   // 4. PROCESSING STATE CHECK (State C)
   else if (homeState.isRefreshing || summary?.status == 'PROCESSING') {
     stateType = ContactGainWidgetStateType.processing;
-    headline = "Building your network";
+    headline = "Building your community";
     subtitle = "Analyzing mutual interest signals across BizSquare";
     contactCount = 0;
     actionLabel = "Building...";
@@ -76,7 +76,7 @@ final contactGainWidgetProvider = Provider<ContactGainWidgetData>((ref) {
   else if (isStale && summary != null && summary.gainedThisWeek > 0) {
     stateType = ContactGainWidgetStateType.completed;
     contactCount = summary.gainedThisWeek;
-    headline = "Previous network update";
+    headline = "Previous community update";
     subtitle = "$contactCount contacts from previous cycle · Next update due";
     actionLabel = "View contacts";
     deepLink = "/contacts";
@@ -85,7 +85,7 @@ final contactGainWidgetProvider = Provider<ContactGainWidgetData>((ref) {
   else if (summary != null && (summary.remainingCount > 0 || summary.status == 'READY')) {
     stateType = ContactGainWidgetStateType.ready;
     contactCount = summary.remainingCount > 0 ? summary.remainingCount : summary.gainedThisWeek;
-    headline = "Your network is ready";
+    headline = "Your community is ready";
     subtitle = "+$contactCount new Square Contacts waiting for you";
     actionLabel = "View";
     deepLink = "/contacts";
@@ -94,7 +94,7 @@ final contactGainWidgetProvider = Provider<ContactGainWidgetData>((ref) {
   else if (summary != null && summary.gainedThisWeek > 0 && summary.status == 'SYNCED') {
     stateType = ContactGainWidgetStateType.completed;
     contactCount = summary.gainedThisWeek;
-    headline = "This week's network";
+    headline = "This week's community";
     subtitle = "$contactCount new contacts added to your Square";
     actionLabel = "View contacts";
     deepLink = "/contacts";
@@ -102,7 +102,7 @@ final contactGainWidgetProvider = Provider<ContactGainWidgetData>((ref) {
   // 8. WAITING STATE CHECK (State B)
   else {
     stateType = ContactGainWidgetStateType.waiting;
-    headline = "Next network update";
+    headline = "Next community update";
 
     final daysUntilSunday = (DateTime.sunday - now.weekday + 7) % 7;
     final nextSunday = now.add(Duration(days: daysUntilSunday == 0 ? 7 : daysUntilSunday));

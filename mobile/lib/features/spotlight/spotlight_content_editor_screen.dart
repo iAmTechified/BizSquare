@@ -115,7 +115,7 @@ class _SpotlightContentEditorScreenState extends ConsumerState<SpotlightContentE
               controller: _promoController,
               maxLines: 4,
               decoration: InputDecoration(
-                hintText: 'Describe what products or services your network should reach out to you for...',
+                hintText: 'Describe what products or services your community should reach out to you for...',
                 filled: true,
                 fillColor: isDark ? const Color(0xFF161E2E) : Colors.white,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),

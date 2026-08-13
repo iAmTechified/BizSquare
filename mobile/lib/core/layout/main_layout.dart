@@ -66,10 +66,38 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final currentIndex = widget.navigationShell.currentIndex;
+    final bgColor = isDark ? const Color(0xFF0B1120) : const Color(0xFFFAFAFA);
 
     return Scaffold(
       extendBody: true,
-      body: widget.navigationShell,
+      body: Stack(
+        children: [
+          widget.navigationShell,
+          // Bottom Fade Overlay under the floating tabs
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 110,
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      bgColor.withValues(alpha: 0.0),
+                      bgColor.withValues(alpha: 0.75),
+                      bgColor.withValues(alpha: 0.98),
+                    ],
+                    stops: const [0.0, 0.5, 1.0],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
       bottomNavigationBar: SafeArea(
         bottom: true,
         child: Container(
@@ -94,13 +122,13 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
             borderRadius: BorderRadius.circular(16),
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-              child: Stack(
-                children: [
-                  // Sliding Glass Indicator
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final tabWidth = constraints.maxWidth / _tabs.length;
-                      return AnimatedPositioned(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final tabWidth = constraints.maxWidth / _tabs.length;
+                  return Stack(
+                    children: [
+                      // Sliding Glass Indicator
+                      AnimatedPositioned(
                         duration: const Duration(milliseconds: 260),
                         curve: Curves.easeOutCubic,
                         left: currentIndex * tabWidth + 4,
@@ -117,63 +145,63 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
                             ),
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      ),
 
-                  // Tab Items
-                  Row(
-                    children: List.generate(_tabs.length, (index) {
-                      final tab = _tabs[index];
-                      final isActive = index == currentIndex;
+                      // Tab Items
+                      Row(
+                        children: List.generate(_tabs.length, (index) {
+                          final tab = _tabs[index];
+                          final isActive = index == currentIndex;
 
-                      return Expanded(
-                        child: InkWell(
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            widget.navigationShell.goBranch(
-                              index,
-                              initialLocation: index == currentIndex,
-                            );
-                          },
-                          splashColor: Colors.transparent,
-                          highlightColor: Colors.transparent,
-                          child: Center(
-                            child: AnimatedScale(
-                              scale: isActive ? 1.04 : 1.0,
-                              duration: const Duration(milliseconds: 200),
-                              curve: Curves.easeOut,
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  HugeIcon(
-                                    icon: isActive ? tab.activeIcon : tab.icon,
-                                    color: isActive
-                                        ? const Color(0xFF0058FF)
-                                        : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
-                                    size: 22,
+                          return Expanded(
+                            child: InkWell(
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                widget.navigationShell.goBranch(
+                                  index,
+                                  initialLocation: index == currentIndex,
+                                );
+                              },
+                              splashColor: Colors.transparent,
+                              highlightColor: Colors.transparent,
+                              child: Center(
+                                child: AnimatedScale(
+                                  scale: isActive ? 1.04 : 1.0,
+                                  duration: const Duration(milliseconds: 200),
+                                  curve: Curves.easeOut,
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      HugeIcon(
+                                        icon: isActive ? tab.activeIcon : tab.icon,
+                                        color: isActive
+                                            ? const Color(0xFF0058FF)
+                                            : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+                                        size: 22,
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        tab.label,
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 11,
+                                          fontWeight: isActive ? FontWeight.w800 : FontWeight.w500,
+                                          color: isActive
+                                              ? const Color(0xFF0058FF)
+                                              : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+                                          letterSpacing: 0.1,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    tab.label,
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 11,
-                                      fontWeight: isActive ? FontWeight.w800 : FontWeight.w500,
-                                      color: isActive
-                                          ? const Color(0xFF0058FF)
-                                          : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
-                                      letterSpacing: 0.1,
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                      );
-                    }),
-                  ),
-                ],
+                          );
+                        }),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ),

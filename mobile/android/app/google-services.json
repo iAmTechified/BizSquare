@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "82721925771",
+    "project_id": "bizsquare-620f1",
+    "storage_bucket": "bizsquare-620f1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:82721925771:android:d55cbbbf5cbfe62c17428e",
+        "android_client_info": {
+          "package_name": "com.BizSquare.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDe0BdJXR1ZW8dCysgEEdIjiZhF0Gy-b_M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:82721925771:android:ccf1ed535cb8cefa17428e",
+        "android_client_info": {
+          "package_name": "com.bizsquare.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDe0BdJXR1ZW8dCysgEEdIjiZhF0Gy-b_M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

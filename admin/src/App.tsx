@@ -13,6 +13,7 @@ import { ContactGainPage } from './pages/ContactGainPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { SystemHealthPage } from './pages/SystemHealthPage';
 import { AuditLogPage } from './pages/AuditLogPage';
+import { TaxonomyPage } from './pages/TaxonomyPage';
 import { LoginPage } from './pages/LoginPage';
 import { AccessDeniedPage } from './pages/AccessDeniedPage';
 import { GlobalLoadingState } from './components/common/GlobalLoadingState';
@@ -73,6 +74,7 @@ function MainAppContent() {
     notifications: { title: 'Notification Composer & Broadcasts', breadcrumb: 'Notifications' },
     system: { title: 'System Health & Monitoring', breadcrumb: 'System Health', permission: 'system.view' },
     audit: { title: 'Administrative Audit Log', breadcrumb: 'Audit Log', permission: 'audit.view' },
+    taxonomy: { title: 'Taxonomy Manager', breadcrumb: 'Taxonomy', permission: 'system.view' },
   };
 
   const currentMeta = routeMeta[currentRoute] || routeMeta.overview;
@@ -131,6 +133,7 @@ function MainAppContent() {
       {currentRoute === 'notifications' && <NotificationsPage />}
       {currentRoute === 'system' && <SystemHealthPage />}
       {currentRoute === 'audit' && <AuditLogPage />}
+      {currentRoute === 'taxonomy' && <TaxonomyPage />}
     </AdminShell>
   );
 }

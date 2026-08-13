@@ -754,7 +754,7 @@ class _SpotlightScreenState extends ConsumerState<SpotlightScreen> {
               _buildExplainerRow(
                 icon: HugeIcons.strokeRoundedShare01,
                 title: '1. Community WhatsApp Sharing',
-                desc: 'Verified network partners share active partner spotlights directly on WhatsApp Status.',
+                desc: 'Verified community partners share active partner spotlights directly on WhatsApp Status.',
                 isDark: isDark,
               ),
               const Divider(height: 24),
@@ -768,7 +768,7 @@ class _SpotlightScreenState extends ConsumerState<SpotlightScreen> {
               _buildExplainerRow(
                 icon: HugeIcons.strokeRoundedFlash,
                 title: "3. Your Spotlight Turn",
-                desc: 'When it is your turn, your verified business offer is submitted and broadcasted across dozens of business networks.',
+                desc: 'When it is your turn, your verified business offer is submitted and broadcasted across dozens of business communities.',
                 isDark: isDark,
               ),
             ],

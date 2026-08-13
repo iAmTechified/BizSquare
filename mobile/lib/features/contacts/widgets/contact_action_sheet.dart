@@ -26,6 +26,7 @@ class ContactActionSheet extends StatelessWidget {
   }) {
     return showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) => ContactActionSheet(

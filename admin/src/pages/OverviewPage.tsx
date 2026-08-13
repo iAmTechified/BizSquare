@@ -119,6 +119,26 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
     fetchOverview(range, true);
   };
 
+  const [sendingTestPush, setSendingTestPush] = useState(false);
+  const handleTestPush = async () => {
+    setSendingTestPush(true);
+    try {
+      const res = await adminAuthApi.sendAdminNotification({
+        title: 'Test Broadcast 🚀',
+        body: 'This is a test notification sent from the Admin Dashboard.',
+        category: 'ANNOUNCEMENT',
+        visual_variant: 'HIGHLIGHT',
+        destination: 'bizsquare://home',
+        audience_type: 'ALL'
+      });
+      showToast({ type: 'success', title: 'Test Push Sent', message: res.message });
+    } catch (err: any) {
+      showToast({ type: 'error', title: 'Test Push Failed', message: err.message || 'Failed to send test push' });
+    } finally {
+      setSendingTestPush(false);
+    }
+  };
+
   // Time-ago formatting helper
   const getRelativeTimeText = () => {
     if (!lastUpdated) return 'Not updated yet';
@@ -212,6 +232,17 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
               30 Days
             </button>
           </div>
+
+          {/* Test Push Action */}
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleTestPush}
+            disabled={sendingTestPush}
+          >
+            <Hugeicon name="notifications" className={sendingTestPush ? 'animate-spin' : ''} size={14} />
+            {sendingTestPush ? 'Sending…' : 'Test Push'}
+          </button>
 
           {/* Refresh Action */}
           <button

@@ -68,7 +68,7 @@ class ContactGainWidgetData {
         orElse: () => ContactGainWidgetStateType.waiting,
       ),
       title: map['title'] ?? 'BIZSQUARE',
-      headline: map['headline'] ?? 'Next network update',
+      headline: map['headline'] ?? 'Next community update',
       subtitle: map['subtitle'] ?? 'Sunday cycle',
       contactCount: map['contact_count'] ?? 0,
       actionLabel: map['action_label'] ?? 'View',

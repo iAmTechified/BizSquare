@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hugeicons/hugeicons.dart';
 import '../../core/motion/motion_primitives.dart';
+import '../../core/providers/auth_state_provider.dart';
 import '../../core/services/api_service.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -126,6 +127,15 @@ class _DailyInteractiveWallScreenState extends ConsumerState<DailyInteractiveWal
     }
   }
 
+  void _closeWallScreen(BuildContext context) {
+    ref.read(userStateProvider.notifier).completeDailyWall();
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/home');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -135,7 +145,7 @@ class _DailyInteractiveWallScreenState extends ConsumerState<DailyInteractiveWal
       backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: Text(
-          'Daily Network Pulse',
+          'For You',
           style: AppTheme.satoshi(fontSize: 18, fontWeight: FontWeight.w800),
         ),
         centerTitle: true,
@@ -147,7 +157,7 @@ class _DailyInteractiveWallScreenState extends ConsumerState<DailyInteractiveWal
             color: AppTheme.primaryBlue,
             size: 22,
           ),
-          onPressed: () => context.pop(),
+          onPressed: () => _closeWallScreen(context),
         ),
       ),
       body: SafeArea(
@@ -157,7 +167,6 @@ class _DailyInteractiveWallScreenState extends ConsumerState<DailyInteractiveWal
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                 child: Column(
                   children: [
-                    // Immediate Contextual Feedback Header Banner (Section 3)
                     if (_feedbackMessage != null)
                       StateTransitionSwitcher(
                         keyObject: _feedbackMessage!,
@@ -193,7 +202,6 @@ class _DailyInteractiveWallScreenState extends ConsumerState<DailyInteractiveWal
                         ),
                       )
                     else
-                      // Purpose Header (Section 4)
                       Container(
                         margin: const EdgeInsets.only(bottom: 16),
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -211,7 +219,7 @@ class _DailyInteractiveWallScreenState extends ConsumerState<DailyInteractiveWal
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                'These quick choices sharpen your demand for weekly Contact Gain.',
+                                'These quick choices sharpen your preferences for community recommendations.',
                                 style: AppTheme.satoshi(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
@@ -222,8 +230,6 @@ class _DailyInteractiveWallScreenState extends ConsumerState<DailyInteractiveWal
                           ],
                         ),
                       ),
-
-                    // Main Card Area / Session Completion View
                     Expanded(
                       child: _currentIndex < _cards.length
                           ? _buildInteractiveCard(context, _cards[_currentIndex], isDark)
@@ -249,78 +255,77 @@ class _DailyInteractiveWallScreenState extends ConsumerState<DailyInteractiveWal
             color: isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0),
             width: 1.5,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Category Badge
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryBlue.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                card.category.toUpperCase(),
-                style: AppTheme.satoshi(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.8,
-                  color: AppTheme.primaryBlue,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    card.category.toUpperCase(),
+                    style: AppTheme.satoshi(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      color: AppTheme.primaryBlue,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
                 ),
-              ),
+                Text(
+                  '${_currentIndex + 1} of ${_cards.length}',
+                  style: AppTheme.satoshi(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 14),
-
-            // Question
+            const SizedBox(height: 16),
             Text(
               card.question,
               style: AppTheme.satoshi(
                 fontSize: 18,
-                fontWeight: FontWeight.w800,
-                height: 1.3,
+                fontWeight: FontWeight.w900,
                 color: isDark ? Colors.white : const Color(0xFF0F172A),
+                height: 1.3,
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              card.hint,
-              style: AppTheme.satoshi(
-                fontSize: 12,
-                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+            if (card.hint.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                card.hint,
+                style: AppTheme.satoshi(
+                  fontSize: 12,
+                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                ),
               ),
-            ),
+            ],
             const Spacer(),
-
-            // Dynamic Interaction Body based on card type
-            _buildCardInteractionBody(card, isDark),
-
-            const Spacer(),
-
-            // Skip / Dismiss
+            _buildInteractionControls(card, isDark),
+            const SizedBox(height: 12),
             Align(
-              alignment: Alignment.center,
+              alignment: Alignment.centerRight,
               child: TextButton(
-                onPressed: _isSubmitting
-                    ? null
-                    : () => _submitInteraction(
-                          cardId: card.id,
-                          interactionType: card.type,
-                          responseValue: {'action': 'skipped'},
-                          taxonomyId: card.taxonomyId,
-                          skipped: true,
-                        ),
+                onPressed: () => _submitInteraction(
+                  cardId: card.id,
+                  interactionType: card.type,
+                  responseValue: {},
+                  taxonomyId: card.taxonomyId,
+                  skipped: true,
+                ),
                 child: Text(
-                  'Skip for now',
+                  'Skip question',
                   style: AppTheme.satoshi(
-                    fontSize: 13,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
                     color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
                   ),
                 ),
@@ -332,11 +337,11 @@ class _DailyInteractiveWallScreenState extends ConsumerState<DailyInteractiveWal
     );
   }
 
-  Widget _buildCardInteractionBody(DailyWallCard card, bool isDark) {
+  Widget _buildInteractionControls(DailyWallCard card, bool isDark) {
     switch (card.type) {
       case 'this_or_that':
-        final optA = card.rawJson['optionA'] as Map? ?? {};
-        final optB = card.rawJson['optionB'] as Map? ?? {};
+        final optA = card.rawJson['optionA'] ?? {'label': 'Option A'};
+        final optB = card.rawJson['optionB'] ?? {'label': 'Option B'};
         return Row(
           children: [
             Expanded(
@@ -344,22 +349,22 @@ class _DailyInteractiveWallScreenState extends ConsumerState<DailyInteractiveWal
                 onTap: () => _submitInteraction(
                   cardId: card.id,
                   interactionType: 'this_or_that',
-                  responseValue: {'choice': optA['label']},
+                  responseValue: {'selectedOption': optA['label']},
                   taxonomyId: card.taxonomyId,
                 ),
                 child: Container(
-                  height: 110,
-                  padding: const EdgeInsets.all(14),
+                  height: 100,
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppTheme.primaryBlue.withValues(alpha: 0.3)),
+                    border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const HugeIcon(
-                        icon: HugeIcons.strokeRoundedCheckmarkCircle01,
+                        icon: HugeIcons.strokeRoundedZap,
                         color: AppTheme.primaryBlue,
                         size: 24,
                       ),
@@ -380,23 +385,23 @@ class _DailyInteractiveWallScreenState extends ConsumerState<DailyInteractiveWal
                 onTap: () => _submitInteraction(
                   cardId: card.id,
                   interactionType: 'this_or_that',
-                  responseValue: {'choice': optB['label']},
+                  responseValue: {'selectedOption': optB['label']},
                   taxonomyId: card.taxonomyId,
                 ),
                 child: Container(
-                  height: 110,
-                  padding: const EdgeInsets.all(14),
+                  height: 100,
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppTheme.primaryBlue.withValues(alpha: 0.3)),
+                    border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const HugeIcon(
-                        icon: HugeIcons.strokeRoundedCheckmarkCircle01,
-                        color: AppTheme.primaryBlue,
+                        icon: HugeIcons.strokeRoundedTarget02,
+                        color: Color(0xFF10B981),
                         size: 24,
                       ),
                       const SizedBox(height: 8),
@@ -516,7 +521,7 @@ class _DailyInteractiveWallScreenState extends ConsumerState<DailyInteractiveWal
         ),
         const SizedBox(height: 20),
         Text(
-          'Network Profile Sharpened',
+          'Profile & Preferences Sharpened',
           style: AppTheme.satoshi(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: -0.4),
         ),
         const SizedBox(height: 8),
@@ -534,7 +539,7 @@ class _DailyInteractiveWallScreenState extends ConsumerState<DailyInteractiveWal
           width: double.infinity,
           height: 50,
           child: ElevatedButton(
-            onPressed: () => context.pop(),
+            onPressed: () => _closeWallScreen(context),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryBlue,
               foregroundColor: Colors.white,

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/biometric_service.dart';
 
+import '../services/api_service.dart';
+
 // Theme Mode Provider (Default is system default)
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
 
@@ -75,9 +77,10 @@ class UserState {
 }
 
 class UserStateNotifier extends StateNotifier<UserState> {
+  final Ref _ref;
   final BiometricService _bioService = BiometricService();
 
-  UserStateNotifier() : super(const UserState()) {
+  UserStateNotifier(this._ref) : super(const UserState()) {
     initFromStorage();
   }
 
@@ -91,6 +94,8 @@ class UserStateNotifier extends StateNotifier<UserState> {
         final token = linked['token'] as String;
         final phone = linked['phoneNumber'] as String;
         final user = (linked['user'] as Map<String, dynamic>?) ?? {};
+
+        _ref.read(apiServiceProvider).setAuthToken(token);
 
         state = state.copyWith(
           isAuthenticated: true,
@@ -124,6 +129,7 @@ class UserStateNotifier extends StateNotifier<UserState> {
     required List<String> supplyMicroNicheIds,
     required String primaryMicroNicheId,
   }) async {
+    _ref.read(apiServiceProvider).setAuthToken(token);
     state = state.copyWith(
       jwtToken: token,
       businessName: businessName,
@@ -184,6 +190,8 @@ class UserStateNotifier extends StateNotifier<UserState> {
     List<dynamic>? supplyNiches,
     List<dynamic>? baselineDemand,
   }) async {
+    _ref.read(apiServiceProvider).setAuthToken(token);
+
     final nicheIds = supplyNiches?.map((n) => n['micro_niche_id'].toString()).toList() ?? [];
     final primaryNiche = supplyNiches?.firstWhere((n) => n['is_primary'] == true, orElse: () => null)?['micro_niche_id']?.toString();
     final demandIds = baselineDemand?.map((d) => d['micro_niche_id'].toString()).toList() ?? [];
@@ -218,11 +226,12 @@ class UserStateNotifier extends StateNotifier<UserState> {
   }
 
   Future<void> logout() async {
+    _ref.read(apiServiceProvider).setAuthToken(null);
     state = const UserState(hasOnboarded: true);
     await _bioService.clearLinkedAccount();
   }
 }
 
 final userStateProvider = StateNotifierProvider<UserStateNotifier, UserState>((ref) {
-  return UserStateNotifier();
+  return UserStateNotifier(ref);
 });

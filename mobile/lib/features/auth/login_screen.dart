@@ -82,6 +82,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final api = ref.read(apiServiceProvider);
       final result = await api.login(phoneNumber: normalizedPhone, pin: pin);
       final token = result['token'] as String;
+      api.setAuthToken(token);
       final user = result['user'] as Map<String, dynamic>;
       final supplyNiches = result['supplyNiches'] as List<dynamic>?;
       final baselineDemand = result['baselineDemand'] as List<dynamic>?;
@@ -187,7 +188,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Sign in to access your business network, weekly contact matches, and Spotlight.',
+                'Sign in to access your business community, weekly contact matches, and Spotlight.',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,

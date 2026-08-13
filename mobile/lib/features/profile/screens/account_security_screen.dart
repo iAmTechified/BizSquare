@@ -25,6 +25,7 @@ class _AccountSecurityScreenState extends ConsumerState<AccountSecurityScreen> {
 
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(

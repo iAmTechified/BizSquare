@@ -53,6 +53,14 @@ class Category {
       microNiches: rawNiches.map((e) => MicroNiche.fromJson(e as Map<String, dynamic>)).toList(),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'icon': icon,
+    'sort_order': sortOrder,
+    'micro_niches': microNiches.map((n) => n.toJson()).toList(),
+  };
 }
 
 /// Offline-first seed taxonomy matching backend database schema v2

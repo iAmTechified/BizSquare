@@ -14,6 +14,7 @@ class SignOutDialog extends StatelessWidget {
   static Future<void> show(BuildContext context, {required VoidCallback onConfirm}) {
     return showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) => SignOutDialog(onConfirm: onConfirm),

@@ -58,6 +58,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     HapticFeedback.selectionClick();
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => AvatarPickerSheet(

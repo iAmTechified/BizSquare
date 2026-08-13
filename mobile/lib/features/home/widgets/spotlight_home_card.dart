@@ -203,7 +203,7 @@ class _SpotlightHomeCardState extends ConsumerState<SpotlightHomeCard> {
             ),
             const SizedBox(height: 12),
             Text(
-              spotlight.content?.promoText ?? 'Help put this verified business in front of your network.',
+              spotlight.content?.promoText ?? 'Help put this verified business in front of your community.',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,

@@ -33,6 +33,7 @@ class _ProfileMainScreenState extends ConsumerState<ProfileMainScreen> {
     final currentAvatarId = ref.read(profileStateProvider).profile?.avatarId ?? 1;
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => AvatarPickerSheet(
@@ -323,7 +324,7 @@ class _ProfileMainScreenState extends ConsumerState<ProfileMainScreen> {
                       ProfileSectionTile(
                         icon: HugeIcons.strokeRoundedShieldUser,
                         title: 'Privacy & Discovery',
-                        subtitle: 'Network search and visibility rules',
+                        subtitle: 'Community search and visibility rules',
                         onTap: () => context.push('/profile/privacy'),
                       ),
                       Divider(height: 1, color: isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0)),

@@ -42,7 +42,7 @@ class SetupProgressBanner extends ConsumerWidget {
 
     if (!profileCompleted) {
       title = 'Complete your profile';
-      description = 'Tell the network who you are and what you offer to start gaining contacts.';
+      description = 'Tell the community who you are and what you offer to start gaining contacts.';
       buttonText = 'Complete profile';
       icon = HugeIcons.strokeRoundedUser;
       onAction = () => context.push('/profile/edit');

@@ -223,9 +223,15 @@ export class AuthService {
    * Login with phone + PIN.
    */
   static async loginUser(phoneNumber: string, pin?: string) {
+    const digits = phoneNumber.replace(/\D/g, '');
+    const last10 = digits.length >= 10 ? digits.substring(digits.length - 10) : digits;
+
     const { rows } = await pool.query(
-      `SELECT * FROM users WHERE phone_number = $1`,
-      [phoneNumber]
+      `SELECT * FROM users 
+       WHERE phone_number = $1 
+          OR phone_number = $2
+          OR RIGHT(REGEXP_REPLACE(phone_number, '\\D', '', 'g'), 10) = $3`,
+      [phoneNumber, `+${digits}`, last10]
     );
 
     if (rows.length === 0) {

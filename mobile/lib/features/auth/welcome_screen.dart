@@ -6,7 +6,7 @@ class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
 
   static const List<_Feature> _features = [
-    _Feature(Icons.people_alt_outlined, 'Smart Networking', 'Get matched with the right businesses daily'),
+    _Feature(Icons.people_alt_outlined, 'Smart Community', 'Get matched with the right businesses daily'),
     _Feature(Icons.contacts_outlined, 'Pocket CRM', 'Turn every contact into a business opportunity'),
     _Feature(Icons.trending_up_outlined, 'Visibility Tools', 'Grow your reach through WhatsApp & Spotlight'),
   ];
@@ -47,7 +47,7 @@ class WelcomeScreen extends StatelessWidget {
               const SizedBox(height: 48),
               Text('Grow your\nbusiness\ntogether.', style: GoogleFonts.inter(fontSize: 38, fontWeight: FontWeight.w800, height: 1.1)),
               const SizedBox(height: 12),
-              Text('The WhatsApp-first platform for smart\nbusiness networking and growth.', style: GoogleFonts.inter(fontSize: 15, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF6B7280), height: 1.5)),
+              Text('The WhatsApp-first platform for smart\nbusiness community and growth.', style: GoogleFonts.inter(fontSize: 15, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF6B7280), height: 1.5)),
               const SizedBox(height: 40),
               ..._features.map((f) => Padding(
                 padding: const EdgeInsets.only(bottom: 16),

@@ -15,6 +15,7 @@ import '../../core/widgets/animated_critter_avatar.dart';
 import '../../core/widgets/avatar_picker_sheet.dart';
 import '../../core/widgets/bizsquare_loader.dart';
 import '../../core/widgets/bizsquare_text_field.dart';
+import '../../core/widgets/taxonomy_state_widgets.dart';
 import '../../core/services/avatar_service.dart';
 
 class MultiStepRegisterScreen extends ConsumerStatefulWidget {
@@ -48,9 +49,6 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
 
   // Step 6 Username & Interests
   final _usernameController = TextEditingController();
-  bool _isCheckingUsername = false;
-  bool? _isUsernameAvailable;
-  Timer? _usernameDebounce;
   final Set<String> _selectedInterestIds = {};
 
   @override
@@ -61,7 +59,19 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
 
   void _restoreDraftState() {
     final draft = ref.read(onboardingDraftProvider);
-    _step = draft.currentStep > 6 ? 6 : draft.currentStep;
+    final userState = ref.read(userStateProvider);
+    final isVerifiedOnServer = userState.jwtToken != null && userState.jwtToken!.isNotEmpty;
+
+    if (isVerifiedOnServer) {
+      if (draft.pin != null && draft.pin!.length == 4) {
+        _step = 6;
+      } else {
+        _step = 5;
+      }
+    } else {
+      _step = draft.currentStep > 6 ? 6 : draft.currentStep;
+    }
+
     _businessNameController.text = draft.businessName ?? '';
     _phoneController.text = draft.phoneNumber ?? '';
 
@@ -82,7 +92,16 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
     _usernameController.text = draft.username ?? '';
     _selectedInterestIds.addAll(draft.selectedInterestIds);
 
-    _expandedCategoryId = MicroNicheTaxonomy.categories.first.id;
+    _expandedCategoryId = null;
+  }
+
+  MicroNiche? _findMicroNicheById(List<Category> categories, String id) {
+    for (final cat in categories) {
+      for (final mn in cat.microNiches) {
+        if (mn.id == id) return mn;
+      }
+    }
+    return null;
   }
 
   @override
@@ -93,32 +112,7 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
     _pinController.dispose();
     _pinConfirmController.dispose();
     _usernameController.dispose();
-    _usernameDebounce?.cancel();
     super.dispose();
-  }
-
-  void _onUsernameChanged(String val) {
-    _usernameDebounce?.cancel();
-    final clean = val.trim().replaceAll('@', '');
-    if (clean.length < 3) {
-      setState(() {
-        _isUsernameAvailable = null;
-        _isCheckingUsername = false;
-      });
-      return;
-    }
-
-    setState(() => _isCheckingUsername = true);
-    _usernameDebounce = Timer(const Duration(milliseconds: 400), () async {
-      final api = ref.read(apiServiceProvider);
-      final available = await api.checkUsernameAvailable(clean);
-      if (mounted) {
-        setState(() {
-          _isCheckingUsername = false;
-          _isUsernameAvailable = available;
-        });
-      }
-    });
   }
 
   List<String> get _allSelectedMicroNiches {
@@ -210,6 +204,9 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
         final token = result['token'] as String;
         final user = result['user'] as Map<String, dynamic>;
 
+        // Set Auth Token on ApiService for subsequent authenticated requests
+        api.setAuthToken(token);
+
         await ref.read(userStateProvider.notifier).completeVerification(
           token: token,
           businessName: user['business_name'] as String? ?? _businessNameController.text.trim(),
@@ -266,14 +263,15 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
       setState(() => _step = 6);
     } else if (_step == 6) {
       // Step 6: Username & Interests
-      final username = _usernameController.text.trim().replaceAll('@', '');
-      if (username.length < 3) {
-        setState(() => _errorMessage = 'Username must be at least 3 characters.');
+      var username = _usernameController.text.trim().replaceAll('@', '');
+      if (username.isNotEmpty && username.length < 3) {
+        setState(() => _errorMessage = 'Username must be at least 3 characters if provided.');
         return;
       }
-      if (_isUsernameAvailable == false) {
-        setState(() => _errorMessage = 'Username is already taken. Please choose another.');
-        return;
+      if (username.isEmpty) {
+        final digits = _phoneController.text.replaceAll(RegExp(r'\D'), '');
+        final lastDigits = digits.length >= 4 ? digits.substring(digits.length - 4) : 'user';
+        username = 'biz_$lastDigits';
       }
       if (_selectedInterestIds.isEmpty) {
         setState(() => _errorMessage = 'Please select at least 1 product interest for weekly matching.');
@@ -282,6 +280,10 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
 
       setState(() => _isLoading = true);
       final api = ref.read(apiServiceProvider);
+      final jwtToken = ref.read(userStateProvider).jwtToken;
+      if (jwtToken != null && jwtToken.isNotEmpty) {
+        api.setAuthToken(jwtToken);
+      }
 
       try {
         await api.completeOnboarding(
@@ -325,10 +327,75 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
 
   void _handleBack() {
     setState(() => _errorMessage = null);
+    final userState = ref.read(userStateProvider);
+    final isVerifiedOnServer = userState.jwtToken != null && userState.jwtToken!.isNotEmpty;
+
+    if (isVerifiedOnServer) {
+      if (_step == 6) {
+        setState(() => _step = 5);
+      } else {
+        _showCancelSetupDialog();
+      }
+      return;
+    }
+
     if (_step > 1) {
       setState(() => _step--);
     } else {
       context.go('/auth-wall');
+    }
+  }
+
+  Future<void> _showCancelSetupDialog() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF161E2E) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Cancel Setup?',
+          style: GoogleFonts.plusJakartaSans(
+            fontWeight: FontWeight.w800,
+            color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+          ),
+        ),
+        content: Text(
+          'Your account has already been verified. If you cancel now, you will be signed out and can sign in anytime.',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Continue Setup',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF0058FF),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              'Sign Out',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFFEF4444),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      await ref.read(userStateProvider.notifier).logout();
+      await ref.read(onboardingDraftProvider.notifier).clearDraft();
+      context.go('/login');
     }
   }
 
@@ -337,38 +404,55 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const HugeIcon(icon: HugeIcons.strokeRoundedArrowLeft01, color: Colors.indigo),
-          onPressed: _handleBack,
-        ),
-        title: Text(
-          'Step $_step of 6',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _handleBack();
+      },
+      child: Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const HugeIcon(icon: HugeIcons.strokeRoundedArrowLeft01, color: Colors.indigo),
+            onPressed: _handleBack,
           ),
-        ),
-        centerTitle: true,
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Top Progress Indicator
-            LinearProgressIndicator(
-              value: _step / 6,
-              backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF0058FF)),
-              minHeight: 4,
+          title: Text(
+            'Step $_step of 6',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
             ),
+          ),
+          centerTitle: true,
+          actions: [
+            TextButton(
+              onPressed: _showCancelSetupDialog,
+              child: Text(
+                'Cancel & Sign In',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                ),
+              ),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              LinearProgressIndicator(
+                value: _step / 6,
+                backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF0058FF)),
+                minHeight: 4,
+              ),
 
-            Expanded(
-              child: SingleChildScrollView(
+              Expanded(
+                child: SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -489,8 +573,9 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   // ==========================================
   // STEP 1: BUSINESS IDENTITY & AVATAR
@@ -610,10 +695,20 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
   // STEP 2: "WHAT DO YOU SELL MAINLY?"
   // ==========================================
   Widget _buildStep2WhatDoYouSellMainly(bool isDark) {
+    return TaxonomyStateWrapper(
+      builder: (categories) => _buildStep2Body(isDark, categories),
+    );
+  }
+
+  Widget _buildStep2Body(bool isDark, List<Category> categories) {
+
+    if (_expandedCategoryId == null && categories.isNotEmpty) {
+      _expandedCategoryId = categories.first.id;
+    }
+
     final theme = Theme.of(context);
-    final categories = MicroNicheTaxonomy.categories;
     final primaryNiche = _primaryMicroNicheId != null
-        ? MicroNicheTaxonomy.findMicroNicheById(_primaryMicroNicheId!)
+        ? _findMicroNicheById(categories, _primaryMicroNicheId!)
         : null;
 
     final filteredCategories = _nicheSearchQuery.trim().isEmpty
@@ -640,7 +735,7 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
         ),
         const SizedBox(height: 6),
         Text(
-          'Select the single main product line your business supplies. This forms your core network identity.',
+          'Select the single main product line your business supplies. This forms your core community identity.',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 14,
             color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
@@ -786,7 +881,12 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
   // STEP 3: "DO YOU SELL ANY OTHER THINGS?"
   // ==========================================
   Widget _buildStep3DoYouSellAnyOtherThings(bool isDark) {
-    final categories = MicroNicheTaxonomy.categories;
+    return TaxonomyStateWrapper(
+      builder: (categories) => _buildStep3Body(isDark, categories),
+    );
+  }
+
+  Widget _buildStep3Body(bool isDark, List<Category> categories) {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -976,6 +1076,10 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
           controller: _pinController,
           obscureText: true,
           keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(4),
+          ],
           maxLength: 4,
           prefixIcon: HugeIcons.strokeRoundedLockKey,
         ),
@@ -987,6 +1091,10 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
           controller: _pinConfirmController,
           obscureText: true,
           keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(4),
+          ],
           maxLength: 4,
           prefixIcon: HugeIcons.strokeRoundedLockKey,
         ),
@@ -995,16 +1103,37 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
   }
 
   // ==========================================
-  // STEP 6: USERNAME & INTERESTS
+  // STEP 6: WHAT ARE YOUR INTERESTS? (SPOTIFY ARTIST-PICKER STYLE)
   // ==========================================
   Widget _buildStep6UsernameAndInterests(bool isDark) {
-    final categories = MicroNicheTaxonomy.categories;
+    return TaxonomyStateWrapper(
+      builder: (categories) => _buildStep6Body(isDark, categories),
+    );
+  }
+
+  Widget _buildStep6Body(bool isDark, List<Category> categories) {
+    final filteredCategories = _nicheSearchQuery.trim().isEmpty
+        ? categories
+        : categories.map((cat) {
+            final catMatches = cat.name.toLowerCase().contains(_nicheSearchQuery.toLowerCase());
+            final matchingNiches = cat.microNiches.where((mn) {
+              return mn.name.toLowerCase().contains(_nicheSearchQuery.toLowerCase());
+            }).toList();
+            if (catMatches) return cat;
+            return Category(
+              id: cat.id,
+              name: cat.name,
+              icon: cat.icon,
+              sortOrder: cat.sortOrder,
+              microNiches: matchingNiches,
+            );
+          }).where((cat) => cat.microNiches.isNotEmpty).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Claim Username & Interests',
+          'What are your interests?',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 26,
             fontWeight: FontWeight.w800,
@@ -1014,162 +1143,219 @@ class _MultiStepRegisterScreenState extends ConsumerState<MultiStepRegisterScree
         ),
         const SizedBox(height: 6),
         Text(
-          'Choose your @handle and select what products you want to buy or source.',
+          'Select product categories and niches you want to discover, buy, or match with on BizSquare.',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 14,
             color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
 
+        // Search Bar for Interests
         BizSquareTextField(
-          label: 'Username (@handle)',
-          hintText: 'e.g. adebayo_store',
-          controller: _usernameController,
-          prefixIcon: HugeIcons.strokeRoundedAt,
-          onChanged: _onUsernameChanged,
+          label: 'Search Interests',
+          hintText: 'e.g. Shoes, Electronics, Solar...',
+          prefixIcon: HugeIcons.strokeRoundedSearch01,
+          onChanged: (val) => setState(() => _nicheSearchQuery = val),
         ),
+        const SizedBox(height: 20),
 
-        if (_isCheckingUsername) ...[
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(strokeWidth: 1.8),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Checking username availability...',
-                style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey),
-              ),
-            ],
-          ),
-        ] else if (_isUsernameAvailable != null) ...[
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(
-                _isUsernameAvailable! ? Icons.check_circle_rounded : Icons.cancel_rounded,
-                color: _isUsernameAvailable! ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                size: 16,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                _isUsernameAvailable! ? 'Username is available!' : 'Username is taken.',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: _isUsernameAvailable! ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                ),
-              ),
-            ],
-          ),
-        ],
-
-        const SizedBox(height: 28),
-
-        Text(
-          'Products You Want to Buy / Source',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Select categories to receive weekly matched suppliers.',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-          ),
-        ),
-        const SizedBox(height: 14),
-
+        // Spotify-style Grid of Interest Cards (Grouped by Category Name without container borders/padding)
         ListView.separated(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: categories.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (context, idx) {
-            final cat = categories[idx];
+          itemCount: filteredCategories.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 24),
+          itemBuilder: (context, catIdx) {
+            final cat = filteredCategories[catIdx];
 
-            return Container(
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF161E2E) : Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0),
-                  width: 1.2,
-                ),
-              ),
-              child: ExpansionTile(
-                initiallyExpanded: idx == 0,
-                title: Text(
-                  cat.name,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
-                  ),
-                ),
-                childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                children: [
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: cat.microNiches.map((mn) {
-                      final isSelected = _selectedInterestIds.contains(mn.id);
-                      final isOwnPrimary = _primaryMicroNicheId == mn.id;
-
-                      if (isOwnPrimary) {
-                        return Tooltip(
-                          message: 'Cannot select your own primary supply product as a buy interest',
-                          child: Chip(
-                            label: Text('${mn.name} (Your Product)'),
-                            backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-                            labelStyle: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                            ),
-                          ),
-                        );
-                      }
-
-                      return FilterChip(
-                        selected: isSelected,
-                        showCheckmark: false,
-                        label: Text(mn.name),
-                        labelStyle: GoogleFonts.plusJakartaSans(
-                          fontSize: 13,
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                          color: isSelected
-                              ? Colors.white
-                              : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155)),
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Clean Category Header (No border/padding wrapper)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      Text(
+                        cat.name,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+                          letterSpacing: -0.2,
                         ),
-                        selectedColor: const Color(0xFF0058FF),
-                        backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-                        onSelected: (sel) {
-                          HapticFeedback.selectionClick();
-                          setState(() {
-                            if (sel) {
-                              _selectedInterestIds.add(mn.id);
-                            } else {
-                              _selectedInterestIds.remove(mn.id);
-                            }
-                          });
-                        },
-                      );
-                    }).toList(),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '${cat.microNiches.length}',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+
+                // Spotify Grid of Micro-Niche Cards
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 2.3,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                  ),
+                  itemCount: cat.microNiches.length,
+                  itemBuilder: (context, nicheIdx) {
+                    final mn = cat.microNiches[nicheIdx];
+                    final isSelected = _selectedInterestIds.contains(mn.id);
+                    final isOwnPrimary = _primaryMicroNicheId == mn.id;
+
+                    return _SpotifyInterestCard(
+                      niche: mn,
+                      isSelected: isSelected,
+                      isOwnPrimary: isOwnPrimary,
+                      isDark: isDark,
+                      onTap: () {
+                        if (isOwnPrimary) return;
+                        HapticFeedback.selectionClick();
+                        setState(() {
+                          if (isSelected) {
+                            _selectedInterestIds.remove(mn.id);
+                          } else {
+                            _selectedInterestIds.add(mn.id);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ],
             );
           },
         ),
       ],
+    );
+  }
+}
+
+// ─── Spotify Style Interest Card ──────────────────────────────────────────────
+class _SpotifyInterestCard extends StatelessWidget {
+  final MicroNiche niche;
+  final bool isSelected;
+  final bool isOwnPrimary;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _SpotifyInterestCard({
+    required this.niche,
+    required this.isSelected,
+    required this.isOwnPrimary,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const activeColor = Color(0xFF0058FF);
+
+    final bg = isSelected
+        ? activeColor.withValues(alpha: 0.12)
+        : (isDark ? const Color(0xFF161E2E) : Colors.white);
+
+    final border = isSelected
+        ? activeColor
+        : (isDark ? const Color(0xFF2A364F) : const Color(0xFFE2E8F0));
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: isOwnPrimary ? null : onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: border,
+              width: isSelected ? 1.8 : 1.2,
+            ),
+          ),
+          child: Row(
+            children: [
+              // Icon Avatar Badge
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? activeColor.withValues(alpha: 0.2)
+                      : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9)),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: HugeIcon(
+                  icon: isSelected
+                      ? HugeIcons.strokeRoundedTick01
+                      : HugeIcons.strokeRoundedSparkles,
+                  color: isSelected
+                      ? activeColor
+                      : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Title
+              Expanded(
+                child: Text(
+                  niche.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    color: isOwnPrimary
+                        ? (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8))
+                        : (isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A)),
+                  ),
+                ),
+              ),
+
+              if (isSelected) ...[
+                const SizedBox(width: 4),
+                Container(
+                  width: 18,
+                  height: 18,
+                  decoration: const BoxDecoration(
+                    color: activeColor,
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.check,
+                    color: Colors.white,
+                    size: 12,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

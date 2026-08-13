@@ -43,15 +43,12 @@ class _ManageOffersScreenState extends ConsumerState<ManageOffersScreen> {
     HapticFeedback.selectionClick();
     setState(() {
       _primaryMicroNicheId = id;
-      _secondaryMicroNicheIds.remove(id); // Mutual exclusion
-      _isSelectingPrimaryMode = false; // Auto-transition to secondary selection
-      _markChanged();
+      _isSelectingPrimaryMode = false;
     });
+    _markChanged();
   }
 
   void _toggleSecondary(String id) {
-    if (id == _primaryMicroNicheId) return; // Strict mutual exclusion
-
     HapticFeedback.selectionClick();
     setState(() {
       if (_secondaryMicroNicheIds.contains(id)) {
@@ -66,14 +63,14 @@ class _ManageOffersScreenState extends ConsumerState<ManageOffersScreen> {
                 'Maximum 2 secondary offerings allowed.',
                 style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
               ),
+              backgroundColor: const Color(0xFFEF4444),
               behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 2),
             ),
           );
         }
       }
-      _markChanged();
     });
+    _markChanged();
   }
 
   Future<void> _handleSave() async {
@@ -81,8 +78,8 @@ class _ManageOffersScreenState extends ConsumerState<ManageOffersScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Please select your main primary offering.',
-            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+            'Please select a primary business offering.',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
           ),
           backgroundColor: const Color(0xFFEF4444),
           behavior: SnackBarBehavior.floating,
@@ -91,11 +88,10 @@ class _ManageOffersScreenState extends ConsumerState<ManageOffersScreen> {
       return;
     }
 
-    HapticFeedback.mediumImpact();
     final success = await ref.read(profileStateProvider.notifier).updateOffers(
-          primaryMicroNicheId: _primaryMicroNicheId!,
-          secondaryMicroNicheIds: _secondaryMicroNicheIds.toList(),
-        );
+      primaryMicroNicheId: _primaryMicroNicheId!,
+      secondaryMicroNicheIds: _secondaryMicroNicheIds.toList(),
+    );
 
     if (mounted && success) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -162,7 +158,7 @@ class _ManageOffersScreenState extends ConsumerState<ManageOffersScreen> {
                   children: [
                     // Header Subtitle
                     Text(
-                      'Manage what your business supplies to the network. Contact Gain uses these to match verified buyers with your inventory.',
+                      'Manage what your business supplies to the community. Contact Gain uses these to match verified buyers with your inventory.',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
                         color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),

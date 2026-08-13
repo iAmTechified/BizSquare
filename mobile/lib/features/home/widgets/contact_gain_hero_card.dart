@@ -116,7 +116,7 @@ class ContactGainHeroCard extends StatelessWidget {
           // Main Hero Number or Explanatory State
           if (gained == 0) ...[
             Text(
-              'Your network is getting ready.',
+              'Your community is getting ready.',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,

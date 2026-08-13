@@ -159,7 +159,7 @@ class NotificationSettingsScreen extends ConsumerWidget {
                     _buildSwitchTile(
                       context,
                       title: 'Contact Gain Alerts',
-                      subtitle: 'Alerts when new verified contacts are delivered to your network.',
+                      subtitle: 'Alerts when new verified contacts are delivered to your community.',
                       value: prefs.contactGainUpdates,
                       onChanged: (val) {
                         HapticFeedback.selectionClick();

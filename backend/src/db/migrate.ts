@@ -10,7 +10,13 @@ async function runMigration() {
     const sql = fs.readFileSync(sqlPath, 'utf8');
     console.log('Executing V2 Migration SQL...');
     await client.query(sql);
-    console.log('✅ V2 Migration & Taxonomy Seeding completed successfully!');
+    console.log('✅ V2 Migration completed successfully!');
+    
+    const v12Path = path.join(process.cwd(), 'src', 'db', 'schema_v12_slug_niches.sql');
+    const v12Sql = fs.readFileSync(v12Path, 'utf8');
+    console.log('Executing V12 Migration SQL...');
+    await client.query(v12Sql);
+    console.log('✅ V12 Migration (Slug Niches) completed successfully!');
     
     // Verify categories count
     const { rows: catRows } = await client.query('SELECT COUNT(*) FROM categories');

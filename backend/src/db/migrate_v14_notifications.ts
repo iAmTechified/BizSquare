@@ -5,9 +5,50 @@ export async function migrateV14Notifications(): Promise<void> {
   try {
     await client.query('BEGIN');
 
-    // 1. Ensure user_notifications has all necessary admin campaign columns
+    // 0. Ensure push_tokens table, push_delivery_log, notification_analytics exist
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS push_tokens (
+          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          token TEXT NOT NULL,
+          platform VARCHAR(10) NOT NULL DEFAULT 'android',
+          registered_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          last_used_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          is_active BOOLEAN DEFAULT TRUE,
+          CONSTRAINT uq_push_token UNIQUE (token)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_pt_user ON push_tokens(user_id, is_active);
+
+      CREATE TABLE IF NOT EXISTS push_delivery_log (
+          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+          notification_id UUID NOT NULL REFERENCES user_notifications(id) ON DELETE CASCADE,
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          token TEXT,
+          status VARCHAR(20) NOT NULL DEFAULT 'pending',
+          sent_at TIMESTAMPTZ,
+          opened_at TIMESTAMPTZ,
+          failure_reason TEXT,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS notification_analytics (
+          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+          user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+          notification_id UUID REFERENCES user_notifications(id) ON DELETE SET NULL,
+          event_type VARCHAR(50) NOT NULL,
+          metadata JSONB DEFAULT '{}'::jsonb,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // 1. Ensure user_notifications has all necessary columns (expires_at, dedup_key, priority, campaign_id, etc.)
     await client.query(`
       ALTER TABLE user_notifications
+      ADD COLUMN IF NOT EXISTS dedup_key VARCHAR(150),
+      ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'INFORMATIONAL',
+      ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS opened_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS campaign_id UUID,
       ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL,
       ADD COLUMN IF NOT EXISTS audience_type VARCHAR(50) DEFAULT 'ALL',
@@ -46,7 +87,7 @@ export async function migrateV14Notifications(): Promise<void> {
     }
 
     await client.query('COMMIT');
-    console.log('[Migration] V14 Notifications (Admin Templates & Unified Campaigns) executed successfully.');
+    console.log('[Migration] V14 Notifications & Push Tokens executed successfully.');
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('[Migration] Failed to execute V14 Notifications migration:', error);
@@ -54,3 +95,4 @@ export async function migrateV14Notifications(): Promise<void> {
     client.release();
   }
 }
+

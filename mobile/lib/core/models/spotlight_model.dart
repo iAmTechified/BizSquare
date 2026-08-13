@@ -12,7 +12,7 @@ class SpotlightRequirementModel {
   factory SpotlightRequirementModel.fromJson(Map<String, dynamic>? json) {
     if (json == null) {
       return const SpotlightRequirementModel(
-        prompt: 'What are you sharing this cycle? Showcase your best product, offer, or service to the network.',
+        prompt: 'What are you sharing this cycle? Showcase your best product, offer, or service to the community.',
         maxCharacters: 300,
         placeholder: "e.g. 20% discount on all Men's Native Wears this week with nationwide delivery...",
       );
@@ -138,7 +138,7 @@ class SpotlightCurrentModel {
     this.submissionStatus = SpotlightSubmissionStatus.verified,
     this.rejectionReason,
     this.requirement = const SpotlightRequirementModel(
-      prompt: 'What are you sharing this cycle? Showcase your best product, offer, or service to the network.',
+      prompt: 'What are you sharing this cycle? Showcase your best product, offer, or service to the community.',
       maxCharacters: 300,
       placeholder: 'Enter details about your offer...',
     ),

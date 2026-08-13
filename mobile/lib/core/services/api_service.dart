@@ -1,7 +1,8 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' hide Category;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_state_provider.dart';
+import '../data/micro_niche_taxonomy.dart';
 
 final apiServiceProvider = Provider<ApiService>((ref) {
   return ApiService(ref: ref);
@@ -57,8 +58,12 @@ class ApiService {
 
   Dio get dio => _dio;
 
-  void setAuthToken(String token) {
-    _dio.options.headers['Authorization'] = 'Bearer $token';
+  void setAuthToken(String? token) {
+    if (token != null && token.isNotEmpty) {
+      _dio.options.headers['Authorization'] = 'Bearer $token';
+    } else {
+      _dio.options.headers.remove('Authorization');
+    }
   }
 
   void clearAuthToken() {
@@ -181,6 +186,24 @@ class ApiService {
       );
     } catch (e) {
       debugPrint('Failed to submit dynamic demand: $e');
+    }
+  }
+
+  /// Fetch dynamic taxonomy from the backend
+  Future<List<Category>> fetchTaxonomy() async {
+    try {
+      final response = await _dio.get('/taxonomy/categories');
+      final data = response.data as List<dynamic>;
+      return data.map((e) => Category.fromJson(e as Map<String, dynamic>)).toList();
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      final msg = data is Map && data['message'] != null
+          ? data['message'] as String
+          : e.message ?? 'Failed to fetch taxonomy';
+      final errCode = data is Map && data['code'] != null
+          ? data['code'] as String
+          : 'TAXONOMY_ERROR';
+      throw ApiException(message: msg, code: errCode, statusCode: e.response?.statusCode);
     }
   }
 }

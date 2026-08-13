@@ -114,7 +114,7 @@ class ContactSyncSettingsScreen extends ConsumerWidget {
                     const SizedBox(height: 4),
                     Text(
                       hasPermission
-                          ? 'BizSquare automatically synchronizes your phonebook with the verified network.'
+                          ? 'BizSquare automatically synchronizes your phonebook with the verified community.'
                           : 'Allow contact permission to gain verified trade contacts directly into your phonebook.',
                       textAlign: TextAlign.center,
                       style: GoogleFonts.plusJakartaSans(

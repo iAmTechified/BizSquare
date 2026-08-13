@@ -80,8 +80,10 @@ class WidgetService {
         androidName: androidContactWidgetProvider,
         iOSName: iosContactWidgetKind,
       );
+    } on PlatformException catch (_) {
+      // Native AppWidgetProvider not compiled/registered on this build target, silent fallback
     } catch (e) {
-      debugPrint('[WidgetService] Contact widget sync error (non-fatal): $e');
+      debugPrint('[WidgetService] Contact widget sync notice: $e');
     }
   }
 
@@ -99,8 +101,10 @@ class WidgetService {
         androidName: androidSpotlightWidgetProvider,
         iOSName: iosSpotlightWidgetKind,
       );
+    } on PlatformException catch (_) {
+      // Native AppWidgetProvider not compiled/registered on this build target, silent fallback
     } catch (e) {
-      debugPrint('[WidgetService] Spotlight widget sync error (non-fatal): $e');
+      debugPrint('[WidgetService] Spotlight widget sync notice: $e');
     }
   }
 

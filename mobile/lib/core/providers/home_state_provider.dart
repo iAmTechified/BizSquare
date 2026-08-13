@@ -8,49 +8,54 @@ import 'auth_state_provider.dart';
 import 'permission_state_provider.dart';
 
 final homeStateProvider = StateNotifierProvider<HomeStateNotifier, HomeState>((ref) {
-  final homeService = ref.watch(homeServiceProvider);
-  final spotlightService = ref.watch(spotlightServiceProvider);
-  final userState = ref.watch(userStateProvider);
-  final permState = ref.watch(permissionStateProvider);
-  return HomeStateNotifier(homeService, spotlightService, userState, permState, ref);
+  final homeService = ref.read(homeServiceProvider);
+  final spotlightService = ref.read(spotlightServiceProvider);
+  return HomeStateNotifier(homeService, spotlightService, ref);
 });
 
 class HomeStateNotifier extends StateNotifier<HomeState> {
   final HomeService _homeService;
   final SpotlightService _spotlightService;
-  final UserState _userState;
   final Ref _ref;
 
   HomeStateNotifier(
     this._homeService,
     this._spotlightService,
-    this._userState,
-    PermissionState permState,
     this._ref,
-  ) : super(HomeState(
-          userName: _userState.username ?? _userState.businessName,
-          businessName: _userState.businessName,
-          avatarId: _userState.avatarId,
-          contactsPermissionGranted: permState.isContactsGranted,
-          notificationsPermissionGranted: permState.isNotificationGranted,
-        )) {
+  ) : super(_buildInitialState(_ref)) {
     loadHomeData();
+  }
+
+  static HomeState _buildInitialState(Ref ref) {
+    final userState = ref.read(userStateProvider);
+    final permState = ref.read(permissionStateProvider);
+    return HomeState(
+      userName: userState.username ?? userState.businessName,
+      businessName: userState.businessName,
+      avatarId: userState.avatarId,
+      contactsPermissionGranted: permState.isContactsGranted,
+      notificationsPermissionGranted: permState.isNotificationGranted,
+    );
   }
 
   /// Initial load: Instant cache load + Silent background refresh
   Future<void> loadHomeData() async {
+    final userState = _ref.read(userStateProvider);
+
     // 1. Load cached data first for instant UI response
     final cachedContactGain = await HomeCacheService.getCachedContactGain();
     final cachedSpotlight = await HomeCacheService.getCachedSpotlight();
     final cachedSetup = await HomeCacheService.getCachedSetupStatus();
 
+    if (!mounted) return;
+
     if (cachedContactGain != null || cachedSpotlight != null) {
       state = state.copyWith(
         contactGain: cachedContactGain,
         spotlight: cachedSpotlight,
-        profileCompleted: cachedSetup?['profileCompleted'] ?? (_userState.businessName != null),
-        primaryOfferSet: cachedSetup?['primaryOfferSet'] ?? (_userState.primaryMicroNicheId != null),
-        interestsSet: cachedSetup?['interestsSet'] ?? (_userState.baselineDemandIds.isNotEmpty),
+        profileCompleted: cachedSetup?['profileCompleted'] ?? (userState.businessName != null),
+        primaryOfferSet: cachedSetup?['primaryOfferSet'] ?? (userState.primaryMicroNicheId != null),
+        interestsSet: cachedSetup?['interestsSet'] ?? (userState.baselineDemandIds.isNotEmpty),
       );
       _recalculateSetupSteps();
     } else {
@@ -71,7 +76,9 @@ class HomeStateNotifier extends StateNotifier<HomeState> {
     try {
       // Re-verify OS permissions
       await _ref.read(permissionStateProvider.notifier).checkAllPermissions();
+      if (!mounted) return;
       final currentPerms = _ref.read(permissionStateProvider);
+      final userState = _ref.read(userStateProvider);
 
       final results = await Future.wait([
         _homeService.getContactGainSummary().then<dynamic>((v) => v).catchError((_) => null),
@@ -79,29 +86,31 @@ class HomeStateNotifier extends StateNotifier<HomeState> {
         _homeService.getUserSetupStatus().then<dynamic>((v) => v).catchError((_) => null),
       ]);
 
+      if (!mounted) return;
+
       final freshContactGain = results[0];
       final freshSpotlight = results[1];
       final freshSetup = results[2];
 
       final profileDone = freshSetup != null
           ? (freshSetup['profileCompleted'] == true)
-          : (_userState.businessName != null && _userState.businessName!.isNotEmpty);
+          : (userState.businessName != null && userState.businessName!.isNotEmpty);
 
       final primaryOfferDone = freshSetup != null
           ? (freshSetup['primaryOfferSet'] == true)
-          : (_userState.primaryMicroNicheId != null && _userState.primaryMicroNicheId!.isNotEmpty);
+          : (userState.primaryMicroNicheId != null && userState.primaryMicroNicheId!.isNotEmpty);
 
       final interestsDone = freshSetup != null
           ? (freshSetup['interestsSet'] == true)
-          : (_userState.baselineDemandIds.isNotEmpty);
+          : (userState.baselineDemandIds.isNotEmpty);
 
       state = state.copyWith(
         isLoading: false,
         isRefreshing: false,
         isOffline: false,
-        userName: _userState.username ?? _userState.businessName,
-        businessName: _userState.businessName,
-        avatarId: _userState.avatarId,
+        userName: userState.username ?? userState.businessName,
+        businessName: userState.businessName,
+        avatarId: userState.avatarId,
         contactsPermissionGranted: currentPerms.isContactsGranted,
         notificationsPermissionGranted: currentPerms.isNotificationGranted,
         profileCompleted: profileDone,
@@ -124,11 +133,12 @@ class HomeStateNotifier extends StateNotifier<HomeState> {
         await HomeCacheService.saveSetupStatus(freshSetup);
       }
     } catch (e) {
+      if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
         isRefreshing: false,
         isOffline: true,
-        errorMessage: 'Unable to reach BizSquare network. Showing cached data.',
+        errorMessage: 'Unable to reach BizSquare community. Showing cached data.',
       );
     }
   }
@@ -150,6 +160,8 @@ class HomeStateNotifier extends StateNotifier<HomeState> {
     if (campaignId == null) return false;
 
     final success = await _spotlightService.participate(campaignId);
+    if (!mounted) return success;
+
     if (success) {
       // Update local state optimistically
       final updatedSpotlight = state.spotlight?.copyWith(

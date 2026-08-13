@@ -34,13 +34,13 @@ final spotlightWidgetProvider = Provider<SpotlightWidgetData>((ref) {
     } else if (subStatus == SpotlightSubmissionStatus.verified) {
       stateType = SpotlightWidgetStateType.verified;
       headline = "Your Spotlight is live";
-      subtitle = "$participantCount network member${participantCount == 1 ? '' : 's'} shared your offer";
+      subtitle = "$participantCount community member${participantCount == 1 ? '' : 's'} shared your offer";
       actionLabel = "View";
       deepLink = "/spotlight";
     } else {
       stateType = SpotlightWidgetStateType.yourTurn;
       headline = "It's your turn";
-      subtitle = "Your business is featured in this cycle's network Spotlight";
+      subtitle = "Your business is featured in this cycle's community Spotlight";
       actionLabel = "Open Spotlight";
       deepLink = "/spotlight";
     }
@@ -49,7 +49,7 @@ final spotlightWidgetProvider = Provider<SpotlightWidgetData>((ref) {
     headline = "Next turn";
     subtitle = cycleEndDate != null && cycleEndDate.isNotEmpty
         ? "Community Spotlight cycle ends $cycleEndDate"
-        : "Share for network partners to earn Akawo Points";
+        : "Share for community partners to earn Akawo Points";
     actionLabel = "View";
     deepLink = "/spotlight";
   }

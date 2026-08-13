@@ -126,7 +126,7 @@ class SpotlightCard extends StatelessWidget {
                   const SizedBox(height: 8),
                 ],
                 Text(
-                  content?.promoText ?? 'Special spotlight feature from our verified partner network.',
+                  content?.promoText ?? 'Special spotlight feature from our verified partner community.',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -404,7 +404,7 @@ class SpotlightCard extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'Your Spotlight is actively circulating across the verified partner network.',
+                'Your Spotlight is actively circulating across the verified partner community.',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,

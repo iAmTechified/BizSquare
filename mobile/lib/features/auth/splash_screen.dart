@@ -21,12 +21,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
   late Animation<double> _taglineFadeAnim;
   late Animation<Offset> _taglineSlideAnim;
 
-  // Expanding aura glow behind logo
-  late AnimationController _auraGlowCtrl;
-  late Animation<double> _auraScaleAnim;
-  late Animation<double> _auraOpacityAnim;
-
-  // Perimeter 4-edge laser line & gradient text controller
+  // Gradient text controller
   late AnimationController _loopCtrl;
 
   @override
@@ -72,20 +67,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
 
     _entranceCtrl.forward();
 
-    // 2. Expanding Aura Glow Controller
-    _auraGlowCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2400),
-    )..repeat();
-
-    _auraScaleAnim = Tween<double>(begin: 0.9, end: 2.2).animate(
-      CurvedAnimation(parent: _auraGlowCtrl, curve: Curves.easeOutCubic),
-    );
-    _auraOpacityAnim = Tween<double>(begin: 0.5, end: 0.0).animate(
-      CurvedAnimation(parent: _auraGlowCtrl, curve: Curves.easeOutQuad),
-    );
-
-    // 3. Continuous 4-Edge Laser & Gradient Sweep Controller
+    // 3. Continuous Gradient Sweep Controller
     _loopCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 3000),
@@ -130,7 +112,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
   @override
   void dispose() {
     _entranceCtrl.dispose();
-    _auraGlowCtrl.dispose();
     _loopCtrl.dispose();
     super.dispose();
   }
@@ -143,102 +124,65 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
-        child: Center(
+        child: SizedBox(
+          width: double.infinity,
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // 1. Logo Area: Unboxed, Larger (96x96), Original Colors Maintained
-              ScaleTransition(
-                scale: _logoScaleAnim,
-                child: SizedBox(
-                  width: 140,
-                  height: 140,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // Expanding & Fading Background Glow Aura
-                      AnimatedBuilder(
-                        animation: _auraGlowCtrl,
-                        builder: (context, child) {
-                          return Transform.scale(
-                            scale: _auraScaleAnim.value,
-                            child: Opacity(
-                              opacity: _auraOpacityAnim.value,
-                              child: Container(
-                                width: 96,
-                                height: 96,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(26),
-                                  color: const Color(0xFF0058FF).withValues(alpha: isDark ? 0.35 : 0.20),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.30 : 0.15),
-                                      blurRadius: 36,
-                                      spreadRadius: 8,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-
-                      // 4 Moving Edge Laser Lines around the Square Perimeter
-                      AnimatedBuilder(
-                        animation: _loopCtrl,
-                        builder: (context, child) {
-                          return CustomPaint(
-                            size: const Size(108, 108),
-                            painter: _SquarePerimeterLaserPainter(
-                              progress: _loopCtrl.value,
-                              isDark: isDark,
-                            ),
-                          );
-                        },
-                      ),
-
-                      // Real Original Logo Image (Original Colors Preserved, No Shader Masking)
-                      Image.asset(
-                        'assets/images/bizsquare_icon.png',
-                        width: 96,
-                        height: 96,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => Image.asset(
-                          'assets/images/bizsquare_icon_nobg.png',
-                          width: 96,
-                          height: 96,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // 2. Sequential Flag-Up Entrance: BizSquare Name Text (Logo is 96px, Name is 26px so logo is larger!)
-              SlideTransition(
-                position: _titleSlideAnim,
-                child: FadeTransition(
-                  opacity: _titleFadeAnim,
-                  child: Text(
-                    'BizSquare',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 26, // Smaller than 96px logo
-                      fontWeight: FontWeight.w800,
-                      color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
-                      letterSpacing: -0.6,
+            const Spacer(),
+            
+            // Main Center Content
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // 1. Logo Area: Unboxed, Larger
+                ScaleTransition(
+                  scale: _logoScaleAnim,
+                  child: Image.asset(
+                    'assets/images/bizsquare_icon.png',
+                    width: 140,
+                    height: 140,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => Image.asset(
+                      'assets/images/bizsquare_icon_nobg.png',
+                      width: 140,
+                      height: 140,
+                      fit: BoxFit.contain,
                     ),
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 8),
+                const SizedBox(height: 24),
 
-              // 3. Sequential Flag-Up Entrance: Tagline "Grow Together" (Thin Font Weight & Animated Gradient Text)
-              SlideTransition(
+                // 2. Sequential Flag-Up Entrance: BizSquare Name Text
+                SlideTransition(
+                  position: _titleSlideAnim,
+                  child: FadeTransition(
+                    opacity: _titleFadeAnim,
+                    child: Text(
+                      'BizSquare',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 40, 
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+                        letterSpacing: -0.6,
+                      ),
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(height: 48),
+
+                // Custom Branded BizSquare Animated Loader
+                const BizSquareLoader(size: 32),
+              ],
+            ),
+            
+            const Spacer(),
+
+            // 3. Sequential Flag-Up Entrance: Tagline "Grow Together" at the bottom
+            Padding(
+              padding: const EdgeInsets.only(bottom: 24.0),
+              child: SlideTransition(
                 position: _taglineSlideAnim,
                 child: FadeTransition(
                   opacity: _taglineFadeAnim,
@@ -247,7 +191,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
                     builder: (context, child) {
                       final progress = _loopCtrl.value;
                       return ShaderMask(
-                        blendMode: BlendMode.srcIn, // Text color IS the gradient
+                        blendMode: BlendMode.srcIn, 
                         shaderCallback: (bounds) {
                           return LinearGradient(
                             begin: Alignment.topLeft,
@@ -266,8 +210,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
                           'Grow Together',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
-                            fontWeight: FontWeight.w200, // THIN FONT WEIGHT
-                            letterSpacing: 3.5, // ELEGANT & SPACIOUS
+                            fontWeight: FontWeight.w200, 
+                            letterSpacing: 3.5, 
                             color: Colors.white,
                           ),
                         ),
@@ -276,74 +220,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
                   ),
                 ),
               ),
-
-              const SizedBox(height: 48),
-
-              // 4. Custom Branded BizSquare Animated Loader
-              const BizSquareLoader(size: 32),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
+      ),
     );
-  }
-}
-
-/// Custom Painter for 4 Moving Edge Laser Lines around the Square Logo Perimeter
-class _SquarePerimeterLaserPainter extends CustomPainter {
-  final double progress;
-  final bool isDark;
-
-  _SquarePerimeterLaserPainter({required this.progress, required this.isDark});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(0, 0, size.width, size.height),
-      const Radius.circular(28),
-    );
-
-    final path = Path()..addRRect(rect);
-    final pathMetrics = path.computeMetrics().first;
-    final totalLength = pathMetrics.length;
-
-    // 4 Edge Segments traveling seamlessly along the square perimeter with zero gaps
-    const segmentCount = 4;
-    final segmentLength = totalLength / segmentCount;
-
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5
-      ..strokeCap = StrokeCap.round;
-
-    final colors = [
-      const Color(0xFF0058FF),
-      const Color(0xFF10B981),
-      const Color(0xFF7C3AED),
-      const Color(0xFFF59E0B),
-    ];
-
-    for (int i = 0; i < segmentCount; i++) {
-      final start = ((progress * totalLength) + (i * segmentLength)) % totalLength;
-      final end = (start + (segmentLength * 0.45)) % totalLength;
-
-      paint.color = colors[i % colors.length];
-
-      if (start < end) {
-        final extractPath = pathMetrics.extractPath(start, end);
-        canvas.drawPath(extractPath, paint);
-      } else {
-        final extractPath1 = pathMetrics.extractPath(start, totalLength);
-        final extractPath2 = pathMetrics.extractPath(0, end);
-        canvas.drawPath(extractPath1, paint);
-        canvas.drawPath(extractPath2, paint);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _SquarePerimeterLaserPainter oldDelegate) {
-    return oldDelegate.progress != progress || oldDelegate.isDark != isDark;
   }
 }
 
@@ -355,8 +237,10 @@ class _GradientRotation extends GradientTransform {
   Matrix4 transform(Rect bounds, {TextDirection? textDirection}) {
     final center = bounds.center;
     return Matrix4.identity()
+      // ignore: deprecated_member_use
       ..translate(center.dx, center.dy)
       ..rotateZ(radians)
+      // ignore: deprecated_member_use
       ..translate(-center.dx, -center.dy);
   }
 }

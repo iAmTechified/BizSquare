@@ -122,7 +122,7 @@ class HomeDashboardScreen extends ConsumerWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Daily Network Pulse',
+                                  'For You',
                                   style: AppTheme.satoshi(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w800,

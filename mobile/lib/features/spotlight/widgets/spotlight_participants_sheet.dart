@@ -20,6 +20,7 @@ class SpotlightParticipantsSheet extends ConsumerStatefulWidget {
   static Future<void> show(BuildContext context, {required String campaignId, required String campaignTitle}) {
     return showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => SpotlightParticipantsSheet(
@@ -108,7 +109,7 @@ class _SpotlightParticipantsSheetState extends ConsumerState<SpotlightParticipan
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Verified network members who shared this Spotlight',
+                      'Verified community members who shared this Spotlight',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
@@ -176,7 +177,7 @@ class _SpotlightParticipantsSheetState extends ConsumerState<SpotlightParticipan
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    'As network members share this campaign to WhatsApp Status, they will appear here.',
+                                    'As community members share this campaign to WhatsApp Status, they will appear here.',
                                     textAlign: TextAlign.center,
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 12,

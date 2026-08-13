@@ -128,7 +128,9 @@ class _AuthWallScreenState extends ConsumerState<AuthWallScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
                 child: SvgPicture.asset(
-                  'assets/images/auth_illustration.svg',
+                  isDark 
+                      ? 'assets/images/auth_illustration_dark.svg'
+                      : 'assets/images/auth_illustration.svg',
                   fit: BoxFit.contain,
                   alignment: Alignment.center,
                 ),

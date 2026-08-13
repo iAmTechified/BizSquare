@@ -42,7 +42,7 @@ export async function migrateV14Notifications(): Promise<void> {
       );
     `);
 
-    // 1. Ensure user_notifications has all necessary columns (expires_at, dedup_key, priority, campaign_id, etc.)
+    // 1. Ensure user_notifications has all necessary columns
     await client.query(`
       ALTER TABLE user_notifications
       ADD COLUMN IF NOT EXISTS dedup_key VARCHAR(150),
@@ -52,7 +52,19 @@ export async function migrateV14Notifications(): Promise<void> {
       ADD COLUMN IF NOT EXISTS campaign_id UUID,
       ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL,
       ADD COLUMN IF NOT EXISTS audience_type VARCHAR(50) DEFAULT 'ALL',
-      ADD COLUMN IF NOT EXISTS push_sent BOOLEAN DEFAULT FALSE;
+      ADD COLUMN IF NOT EXISTS push_sent BOOLEAN DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS source VARCHAR(20) NOT NULL DEFAULT 'BACKEND',
+      ADD COLUMN IF NOT EXISTS event_type VARCHAR(80) NOT NULL DEFAULT 'system.announcement',
+      ADD COLUMN IF NOT EXISTS category VARCHAR(30) NOT NULL DEFAULT 'SYSTEM',
+      ADD COLUMN IF NOT EXISTS visual_variant VARCHAR(30) DEFAULT 'DEFAULT',
+      ADD COLUMN IF NOT EXISTS sound_variant VARCHAR(30) DEFAULT 'DEFAULT',
+      ADD COLUMN IF NOT EXISTS payload JSONB DEFAULT '{}'::jsonb;
+    `);
+
+    // 1b. Ensure notification_analytics has source column
+    await client.query(`
+      ALTER TABLE notification_analytics
+      ADD COLUMN IF NOT EXISTS source VARCHAR(20) DEFAULT 'BACKEND';
     `);
 
     // 2. Create notification_templates table for reusable templates

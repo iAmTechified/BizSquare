@@ -42,22 +42,18 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     _TabConfig(
       label: 'Home',
       icon: HugeIcons.strokeRoundedHome01,
-      activeIcon: HugeIcons.strokeRoundedHome01,
     ),
     _TabConfig(
       label: 'Contacts',
       icon: HugeIcons.strokeRoundedContact01,
-      activeIcon: HugeIcons.strokeRoundedContact01,
     ),
     _TabConfig(
       label: 'Spotlight',
       icon: HugeIcons.strokeRoundedFlash,
-      activeIcon: HugeIcons.strokeRoundedFlash,
     ),
     _TabConfig(
       label: 'Profile',
       icon: HugeIcons.strokeRoundedUser,
-      activeIcon: HugeIcons.strokeRoundedUser,
     ),
   ];
 
@@ -127,7 +123,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
                   final tabWidth = constraints.maxWidth / _tabs.length;
                   return Stack(
                     children: [
-                      // Sliding Glass Indicator
+                      // Solid Blue Active Indicator
                       AnimatedPositioned(
                         duration: const Duration(milliseconds: 260),
                         curve: Curves.easeOutCubic,
@@ -137,12 +133,8 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
                         height: constraints.maxHeight - 8,
                         child: Container(
                           decoration: BoxDecoration(
-                            color: const Color(0xFF0058FF).withValues(alpha: isDark ? 0.16 : 0.10),
+                            color: const Color(0xFF0058FF),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: const Color(0xFF0058FF).withValues(alpha: isDark ? 0.35 : 0.25),
-                              width: 1.0,
-                            ),
                           ),
                         ),
                       ),
@@ -173,9 +165,9 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       HugeIcon(
-                                        icon: isActive ? tab.activeIcon : tab.icon,
+                                        icon: tab.icon,
                                         color: isActive
-                                            ? const Color(0xFF0058FF)
+                                            ? Colors.white
                                             : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
                                         size: 22,
                                       ),
@@ -186,7 +178,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
                                           fontSize: 11,
                                           fontWeight: isActive ? FontWeight.w800 : FontWeight.w500,
                                           color: isActive
-                                              ? const Color(0xFF0058FF)
+                                              ? Colors.white
                                               : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
                                           letterSpacing: 0.1,
                                         ),
@@ -214,11 +206,9 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
 class _TabConfig {
   final String label;
   final dynamic icon;
-  final dynamic activeIcon;
 
   const _TabConfig({
     required this.label,
     required this.icon,
-    required this.activeIcon,
   });
 }

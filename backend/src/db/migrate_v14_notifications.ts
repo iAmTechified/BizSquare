@@ -96,3 +96,5 @@ export async function migrateV14Notifications(): Promise<void> {
   }
 }
 
+
+if (require.main === module) { migrateV14Notifications().then(() => process.exit(0)); }

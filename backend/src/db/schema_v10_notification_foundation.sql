@@ -27,6 +27,10 @@ CREATE TABLE IF NOT EXISTS user_notifications (
     CONSTRAINT uq_user_notification_dedup UNIQUE (dedup_key)
 );
 
+ALTER TABLE user_notifications ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'SENT';
+ALTER TABLE user_notifications ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ;
+ALTER TABLE user_notifications ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+
 CREATE INDEX IF NOT EXISTS idx_un_user_status ON user_notifications(user_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_un_dedup ON user_notifications(dedup_key);
 CREATE INDEX IF NOT EXISTS idx_un_expires ON user_notifications(expires_at) WHERE expires_at IS NOT NULL;

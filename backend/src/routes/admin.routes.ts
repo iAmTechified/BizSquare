@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { requireAdmin, requirePermission } from '../middleware/adminAuth.middleware';
 import { AuditService } from '../services/audit.service';
+import { NotificationFoundationService } from '../services/notification_foundation.service';
 import { pool } from '../db/pool';
 
 const router = Router();
@@ -317,7 +318,7 @@ router.post('/notifications/send', requireAdmin, async (req: AuthRequest, res: R
 
       const dedupKey = `ADMIN_NOTIF:${u.id}:${todayStr}:${title.slice(0, 20)}`;
 
-      // @ts-ignore: Assume NotificationFoundationService available
+
       const result = await NotificationFoundationService.dispatchEvent({
         recipientUserId: u.id,
         eventType: `admin.${category.toLowerCase()}`,
